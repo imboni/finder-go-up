@@ -23,9 +23,12 @@ rm -f \
   "$LAUNCH_AGENTS_DIR/com.user.finder-go-up-warm.plist"
 
 rm -f "$PREFIX/bin/finder-go-up-daemon" "$PREFIX/bin/finder-go-up-client"
+rm -rf "$APP_DIR/finder-go-up.app"
 rm -rf "$APP_DIR/返回上一级.app"
+rm -rf "$HOME/Library/Services/finder-go-up.workflow"
 rm -rf "$HOME/Library/Services/返回上一级.workflow"
+rm -rf "$HOME/Library/Application Support/finder-go-up"
 /System/Library/CoreServices/pbs -flush 2>/dev/null || true
 rm -f /tmp/finder-go-up.sock /tmp/finder-go-up-daemon.log
 
-echo "Uninstalled Finder Go Up."
+echo "Uninstalled finder-go-up."

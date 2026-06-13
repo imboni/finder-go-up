@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="assets/logo.png" width="96" alt="Finder Go Up">
+<img src="assets/logo.png" width="96" alt="finder-go-up">
 
-# Finder Go Up
+# finder-go-up
 
 **在当前访达窗口一键返回上一级目录**
 
@@ -19,11 +19,12 @@
 
 ## 简介
 
-Finder Go Up 是一款独立的 macOS 轻量工具。安装后自动注册访达右键菜单，在当前窗口跳转到父目录——不新开窗口、无 Dock 图标、不抢焦点。
+finder-go-up 是一款独立的 macOS 轻量工具。安装后自动注册访达右键菜单，并在首次启动时引导完成配置。
 
 ## 功能
 
-- 访达右键菜单 **返回上一级**
+- 访达右键菜单 **finder-go-up**
+- 首次安装引导界面
 - 后台常驻，响应快
 - 登录后自动启动
 - 一条命令安装与卸载
@@ -41,11 +42,19 @@ cd finder-go-up
 bash scripts/install.sh
 ```
 
-安装完成后，在访达窗口空白处 **右键 → 返回上一级** 即可使用。
+安装完成后会自动打开 **finder-go-up** 引导窗口，按提示完成配置即可。
 
-若未看到菜单项，打开 **系统设置 → 键盘 → 键盘快捷键 → 服务**，确认 **返回上一级** 已启用，然后重启访达（按住 ⌥ 点击访达图标 → 重新开启）。
+| 组件 | 路径 |
+| --- | --- |
+| App | `~/Applications/finder-go-up.app` |
+| Daemon | `~/.local/bin/finder-go-up-daemon` |
+| Client | `~/.local/bin/finder-go-up-client` |
 
-首次使用时若系统请求自动化权限，请允许控制 **Finder**。
+## 使用
+
+1. 打开访达，在窗口空白处 **右键 → finder-go-up**
+2. 若未看到菜单项：**系统设置 → 键盘 → 键盘快捷键 → 服务**，勾选 **finder-go-up**
+3. 也可随时打开 `~/Applications/finder-go-up.app` 查看说明或试用
 
 ## 卸载
 
@@ -58,12 +67,13 @@ bash scripts/uninstall.sh
 ```bash
 bash scripts/build.sh    # 仅构建
 make install             # 构建并安装
+make package             # 打发布包
 make clean               # 清理 build/
 ```
 
 ## 可选集成
 
-如需放入第三方右键工具（如 iRightMouse Pro），见 [docs/irightmouse.md](docs/irightmouse.md)。
+第三方右键工具（如 iRightMouse Pro）见 [docs/irightmouse.md](docs/irightmouse.md)。
 
 ## 许可证
 
