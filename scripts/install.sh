@@ -24,6 +24,17 @@ echo "==> Installing binaries to $BIN_DIR"
 install -m 755 "$ROOT/build/finder-go-up-daemon" "$BIN_DIR/finder-go-up-daemon"
 install -m 755 "$ROOT/build/finder-go-up-client" "$BIN_DIR/finder-go-up-client"
 
+echo "==> Installing Finder context menu"
+WORKFLOW_DST="$HOME/Library/Services/返回上一级.workflow"
+CLIENT_PATH="$BIN_DIR/finder-go-up-client"
+rm -rf "$WORKFLOW_DST"
+mkdir -p "$WORKFLOW_DST/Contents/Resources"
+cp "$ROOT/resources/返回上一级.workflow/Contents/Info.plist" "$WORKFLOW_DST/Contents/Info.plist"
+sed "s|@@CLIENT_PATH@@|$CLIENT_PATH|g" \
+  "$ROOT/resources/返回上一级.workflow/Contents/Resources/document.wflow" \
+  > "$WORKFLOW_DST/Contents/Resources/document.wflow"
+/System/Library/CoreServices/pbs -flush 2>/dev/null || true
+
 echo "==> Installing app bundle to $APP_PATH"
 rm -rf "$APP_PATH"
 cp -R "$ROOT/build/返回上一级.app" "$APP_PATH"
@@ -45,10 +56,10 @@ launchctl bootstrap "$DOMAIN" "$LAUNCH_AGENTS_DIR/com.acode.finder-go-up-warm.pl
 
 echo
 echo "Installed Finder Go Up"
-echo "  daemon : $BIN_DIR/finder-go-up-daemon"
-echo "  client : $BIN_DIR/finder-go-up-client"
-echo "  app    : $APP_PATH"
+echo "  daemon  : $BIN_DIR/finder-go-up-daemon"
+echo "  client  : $BIN_DIR/finder-go-up-client"
+echo "  app     : $APP_PATH"
+echo "  service : $WORKFLOW_DST"
 echo
-echo "Configure your launcher to open:"
-echo "  $APP_PATH"
-echo "See docs/irightmouse.md for iRightMouse Pro setup."
+echo "Usage: Finder window → right-click → 返回上一级"
+echo "If missing: System Settings → Keyboard → Shortcuts → Services → enable 返回上一级"
