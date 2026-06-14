@@ -170,6 +170,19 @@ static void RegisterWithSystem(void) {
     }
 }
 
+static NSView *CardView(void) {
+    NSView *card = [[NSView alloc] initWithFrame:NSZeroRect];
+    card.wantsLayer = YES;
+    card.layer.cornerRadius = 12;
+    card.layer.borderWidth = 1;
+    if (@available(macOS 10.14, *)) {
+        card.layer.backgroundColor = [[NSColor controlBackgroundColor] CGColor];
+        card.layer.borderColor = [[NSColor separatorColor] CGColor];
+    }
+    card.translatesAutoresizingMaskIntoConstraints = NO;
+    return card;
+}
+
 - (void)showWindow {
     if (self.window) {
         [self refreshStatus];
@@ -177,9 +190,9 @@ static void RegisterWithSystem(void) {
         return;
     }
 
-    const CGFloat pad = 24;
+    const CGFloat pad = 32;
     self.window = [[NSWindow alloc]
-        initWithContentRect:NSMakeRect(0, 0, 400, 100)
+        initWithContentRect:NSMakeRect(0, 0, 420, 100)
                   styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable)
                     backing:NSBackingStoreBuffered
                       defer:NO];
@@ -194,18 +207,34 @@ static void RegisterWithSystem(void) {
     icon.image = [NSApp applicationIconImage];
     icon.imageScaling = NSImageScaleProportionallyUpOrDown;
     icon.translatesAutoresizingMaskIntoConstraints = NO;
-    [icon.widthAnchor constraintEqualToConstant:44].active = YES;
-    [icon.heightAnchor constraintEqualToConstant:44].active = YES;
+    [icon.widthAnchor constraintEqualToConstant:128].active = YES;
+    [icon.heightAnchor constraintEqualToConstant:128].active = YES;
 
     NSTextField *title = MakeLabel([NSString stringWithUTF8String:FGU_APP_NAME],
-                                   [NSFont boldSystemFontOfSize:18], [NSColor labelColor]);
+                                   [NSFont boldSystemFontOfSize:22], [NSColor labelColor]);
+    title.alignment = NSTextAlignmentCenter;
+
+    NSTextField *subtitle = MakeLabel(@"访达返回上一级",
+                                      [NSFont systemFontOfSize:13], [NSColor secondaryLabelColor]);
+    subtitle.alignment = NSTextAlignmentCenter;
+
+    NSView *card = CardView();
     NSTextField *usage = MakeLabel(
         @"选中任意项目 → 右键 → 服务 → 返回上一级\n"
         @"快捷键：⌃⌘↑",
-        [NSFont systemFontOfSize:12], [NSColor secondaryLabelColor]);
+        [NSFont systemFontOfSize:13], [NSColor labelColor]);
+    [card addSubview:usage];
+    usage.translatesAutoresizingMaskIntoConstraints = NO;
+    [NSLayoutConstraint activateConstraints:@[
+        [usage.topAnchor constraintEqualToAnchor:card.topAnchor constant:14],
+        [usage.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:16],
+        [usage.trailingAnchor constraintEqualToAnchor:card.trailingAnchor constant:-16],
+        [usage.bottomAnchor constraintEqualToAnchor:card.bottomAnchor constant:-14],
+    ]];
 
     self.statusLabel = MakeLabel(@"", [NSFont systemFontOfSize:12 weight:NSFontWeightMedium],
                                   [NSColor labelColor]);
+    self.statusLabel.alignment = NSTextAlignmentCenter;
 
     NSButton *authorize = PrimaryButton(@"授权并试用");
     authorize.target = self;
@@ -216,23 +245,27 @@ static void RegisterWithSystem(void) {
     done.translatesAutoresizingMaskIntoConstraints = NO;
     done.keyEquivalent = @"\r";
 
-    for (NSView *v in @[ icon, title, usage, self.statusLabel, authorize, done ]) {
+    for (NSView *v in @[ icon, title, subtitle, card, self.statusLabel, authorize, done ]) {
         [root addSubview:v];
     }
 
     [NSLayoutConstraint activateConstraints:@[
         [icon.topAnchor constraintEqualToAnchor:root.topAnchor constant:pad],
-        [icon.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
+        [icon.centerXAnchor constraintEqualToAnchor:root.centerXAnchor],
 
-        [title.topAnchor constraintEqualToAnchor:icon.topAnchor constant:2],
-        [title.leadingAnchor constraintEqualToAnchor:icon.trailingAnchor constant:12],
+        [title.topAnchor constraintEqualToAnchor:icon.bottomAnchor constant:16],
+        [title.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
         [title.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
 
-        [usage.topAnchor constraintEqualToAnchor:icon.bottomAnchor constant:16],
-        [usage.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
-        [usage.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
+        [subtitle.topAnchor constraintEqualToAnchor:title.bottomAnchor constant:4],
+        [subtitle.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
+        [subtitle.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
 
-        [self.statusLabel.topAnchor constraintEqualToAnchor:usage.bottomAnchor constant:12],
+        [card.topAnchor constraintEqualToAnchor:subtitle.bottomAnchor constant:20],
+        [card.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
+        [card.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
+
+        [self.statusLabel.topAnchor constraintEqualToAnchor:card.bottomAnchor constant:16],
         [self.statusLabel.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
         [self.statusLabel.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
 
@@ -241,7 +274,7 @@ static void RegisterWithSystem(void) {
         [authorize.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
 
         [done.topAnchor constraintEqualToAnchor:authorize.bottomAnchor constant:10],
-        [done.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
+        [done.centerXAnchor constraintEqualToAnchor:root.centerXAnchor],
         [done.bottomAnchor constraintEqualToAnchor:root.bottomAnchor constant:-pad],
     ]];
 
