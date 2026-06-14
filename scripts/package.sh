@@ -1,33 +1,25 @@
 #!/usr/bin/env bash
-# Build a distributable release bundle under dist/
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+VERSION="${VERSION:-0.0.1}"
 DIST="$ROOT/dist"
-NAME="finder-go-up"
+NAME="finder-go-up-${VERSION}-macos"
 STAGING="$DIST/$NAME"
-ARCHIVE="$DIST/${NAME}-macos.tar.gz"
+ARCHIVE="$DIST/${NAME}.tar.gz"
 
-echo "==> Building"
-make -C "$ROOT" clean all launchagents
-
-echo "==> Staging $STAGING"
+make -C "$ROOT" clean all
 rm -rf "$STAGING" "$ARCHIVE"
-mkdir -p "$STAGING/bin" "$STAGING/launchagents" "$STAGING/scripts"
+mkdir -p "$STAGING/scripts"
 
-cp "$ROOT/build/finder-go-up-daemon" "$ROOT/build/finder-go-up-client" "$STAGING/bin/"
 cp -R "$ROOT/build/finder-go-up.app" "$STAGING/"
-cp "$ROOT/launchagents/"*.template "$STAGING/launchagents/"
-cp -R "$ROOT/resources/finder-go-up.workflow" "$STAGING/"
 cp "$ROOT/scripts/install-release.sh" "$STAGING/install.sh"
+cp "$ROOT/scripts/purge.sh" "$ROOT/scripts/sign-app.sh" \
+   "$ROOT/scripts/register-app-service.sh" "$ROOT/scripts/set-service-shortcut.sh" \
+   "$STAGING/scripts/"
 cp "$ROOT/scripts/uninstall.sh" "$STAGING/scripts/"
-cp "$ROOT/LICENSE" "$ROOT/README.md" "$STAGING/"
+cp "$ROOT/LICENSE" "$STAGING/"
+cp "$ROOT/README.md" "$STAGING/"
 
-(
-  cd "$DIST"
-  tar czf "${NAME}-macos.tar.gz" "$NAME"
-)
-
-echo
-echo "Package: $ARCHIVE"
-echo "Install: tar xzf ${NAME}-macos.tar.gz && cd $NAME && bash install.sh"
+tar -czf "$ARCHIVE" -C "$DIST" "$NAME"
+echo "$ARCHIVE"

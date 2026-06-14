@@ -2,71 +2,23 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PREFIX="${PREFIX:-$HOME/.local}"
 APP_DIR="${APP_DIR:-$HOME/Applications}"
-LAUNCH_AGENTS_DIR="${LAUNCH_AGENTS_DIR:-$HOME/Library/LaunchAgents}"
-UID_NUM="$(id -u)"
-DOMAIN="gui/$UID_NUM"
-
-OLD_DAEMON_LABEL="com.user.finder-go-up"
-OLD_WARM_LABEL="com.user.finder-go-up-warm"
-NEW_DAEMON_LABEL="com.acode.finder-go-up"
-NEW_WARM_LABEL="com.acode.finder-go-up-warm"
-LEGACY_APP="$APP_DIR/返回上一级.app"
-LEGACY_SERVICE="$HOME/Library/Services/返回上一级.workflow"
-
-echo "==> Building"
-make -C "$ROOT" all launchagents PREFIX="$PREFIX" APP_DIR="$APP_DIR"
-
-BIN_DIR="$PREFIX/bin"
 APP_PATH="$APP_DIR/finder-go-up.app"
-mkdir -p "$BIN_DIR" "$APP_DIR"
+PREFIX="${PREFIX:-$HOME/.local}"
 
-echo "==> Removing legacy installs"
-rm -rf "$LEGACY_APP" "$LEGACY_SERVICE"
+bash "$ROOT/scripts/purge.sh"
 
-echo "==> Installing binaries to $BIN_DIR"
-install -m 755 "$ROOT/build/finder-go-up-daemon" "$BIN_DIR/finder-go-up-daemon"
-install -m 755 "$ROOT/build/finder-go-up-client" "$BIN_DIR/finder-go-up-client"
-
-echo "==> Installing Finder context menu"
-WORKFLOW_DST="$HOME/Library/Services/finder-go-up.workflow"
-CLIENT_PATH="$BIN_DIR/finder-go-up-client"
-rm -rf "$WORKFLOW_DST"
-mkdir -p "$WORKFLOW_DST/Contents/Resources"
-cp "$ROOT/resources/finder-go-up.workflow/Contents/Info.plist" "$WORKFLOW_DST/Contents/Info.plist"
-sed "s|@@CLIENT_PATH@@|$CLIENT_PATH|g" \
-  "$ROOT/resources/finder-go-up.workflow/Contents/Resources/document.wflow" \
-  > "$WORKFLOW_DST/Contents/Resources/document.wflow"
-/System/Library/CoreServices/pbs -flush 2>/dev/null || true
-
-echo "==> Installing app bundle to $APP_PATH"
+make -C "$ROOT" clean all APP_DIR="$APP_DIR"
 rm -rf "$APP_PATH"
 cp -R "$ROOT/build/finder-go-up.app" "$APP_PATH"
+bash "$ROOT/scripts/sign-app.sh" "$APP_PATH"
 
-echo "==> Installing LaunchAgents"
-for label in "$OLD_DAEMON_LABEL" "$OLD_WARM_LABEL" "$NEW_DAEMON_LABEL" "$NEW_WARM_LABEL"; do
-  launchctl bootout "$DOMAIN/$label" 2>/dev/null || true
-done
+install -d "$PREFIX/bin"
+install -m 755 "$APP_PATH/Contents/MacOS/finder-go-up-client" "$PREFIX/bin/finder-go-up"
 
-install -m 644 "$ROOT/build/launchagents/com.acode.finder-go-up.plist" \
-  "$LAUNCH_AGENTS_DIR/com.acode.finder-go-up.plist"
-install -m 644 "$ROOT/build/launchagents/com.acode.finder-go-up-warm.plist" \
-  "$LAUNCH_AGENTS_DIR/com.acode.finder-go-up-warm.plist"
+bash "$ROOT/scripts/register-app-service.sh" "$APP_PATH"
 
-rm -f "$LAUNCH_AGENTS_DIR/$OLD_DAEMON_LABEL.plist" "$LAUNCH_AGENTS_DIR/$OLD_WARM_LABEL.plist"
+rm -f "$HOME/Library/Application Support/finder-go-up/onboarded"
+open -a "$APP_PATH" --args --show
 
-launchctl bootstrap "$DOMAIN" "$LAUNCH_AGENTS_DIR/com.acode.finder-go-up.plist"
-launchctl bootstrap "$DOMAIN" "$LAUNCH_AGENTS_DIR/com.acode.finder-go-up-warm.plist"
-
-echo "==> Opening finder-go-up for setup"
-open "$APP_PATH"
-
-echo
-echo "Installed finder-go-up"
-echo "  daemon  : $BIN_DIR/finder-go-up-daemon"
-echo "  client  : $BIN_DIR/finder-go-up-client"
-echo "  app     : $APP_PATH"
-echo "  service : $WORKFLOW_DST"
-echo
-echo "Usage: Finder window → right-click → finder-go-up"
+echo "Installed finder-go-up → $APP_PATH"

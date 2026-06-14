@@ -1,35 +1,50 @@
 #import <Foundation/Foundation.h>
-#include "common.h"
 #include "navigate.h"
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <unistd.h>
 
-static int SendToDaemon(void) {
-    int fd = socket(AF_UNIX, SOCK_DGRAM, 0);
-    if (fd < 0) {
-        return -1;
-    }
-
-    struct sockaddr_un addr = {0};
-    addr.sun_family = AF_UNIX;
-    strlcpy(addr.sun_path, FGU_SOCKET_PATH, sizeof(addr.sun_path));
-
-    char signal = 1;
-    ssize_t n = sendto(fd, &signal, 1, 0, (struct sockaddr *)&addr, sizeof(addr));
-    close(fd);
-    return n == 1 ? 0 : -1;
+static BOOL RunNavigationScript(NSDictionary **errorOut) {
+    NSAppleScript *script = [[NSAppleScript alloc] initWithSource:
+        @"tell application \"Finder\"\n"
+         @"  activate\n"
+         @"  if (count of windows) is 0 then error \"没有打开的访达窗口\"\n"
+         @"  set here to target of front window\n"
+         @"  try\n"
+         @"    set parentFolder to container of here\n"
+         @"  on error\n"
+         @"    error \"已经在最顶层目录\"\n"
+         @"  end try\n"
+         @"  set target of front window to parentFolder\n"
+         @"end tell"];
+    return [script executeAndReturnError:errorOut] != nil;
 }
 
-static void NavigateUpInline(void) {
-    NSAppleScript *script = [[NSAppleScript alloc] initWithSource:
-        @"tell application \"Finder\" to if (count of windows) > 0 then "
-        @"set target of front window to (container of (target of front window))"];
-    [script executeAndReturnError:nil];
+BOOL FGU_NavigateUpDirectWithError(NSDictionary **errorOut) {
+    return RunNavigationScript(errorOut);
+}
+
+BOOL FGU_NavigateUpWithError(NSDictionary **errorOut) {
+    return RunNavigationScript(errorOut);
+}
+
+void FGU_NavigateUpDirect(void) {
+    NSDictionary *error = nil;
+    (void)FGU_NavigateUpDirectWithError(&error);
 }
 
 void FGU_NavigateUp(void) {
-    if (SendToDaemon() != 0) {
-        NavigateUpInline();
+    NSTask *task = [[NSTask alloc] init];
+    task.launchPath = @"/usr/bin/open";
+    task.arguments = @[ @"finder-go-up://go-up" ];
+    @try {
+        [task launch];
+        [task waitUntilExit];
+    } @catch (NSException *exception) {
+        (void)exception;
     }
+}
+
+BOOL FGU_HasFinderAutomationAccess(void) {
+    NSDictionary *error = nil;
+    NSAppleScript *script = [[NSAppleScript alloc] initWithSource:
+        @"tell application \"Finder\" to return name"];
+    return [script executeAndReturnError:&error] != nil && error == nil;
 }

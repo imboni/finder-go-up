@@ -2,30 +2,28 @@
 #include "common.h"
 #include "navigate.h"
 
-static NSString *SupportDirectory(void) {
+static NSString *SupportDir(void) {
     return [NSHomeDirectory() stringByAppendingPathComponent:
             [NSString stringWithFormat:@"Library/Application Support/%s", FGU_SUPPORT_DIR]];
 }
 
-static NSString *OnboardedMarkerPath(void) {
-    return [[SupportDirectory()
-        stringByAppendingPathComponent:[NSString stringWithUTF8String:FGU_ONBOARDED_FILE]] copy];
+static NSString *OnboardedPath(void) {
+    return [SupportDir() stringByAppendingPathComponent:@FGU_ONBOARDED_FILE];
 }
 
-static BOOL IsOnboardingCompleted(void) {
-    return [[NSFileManager defaultManager] fileExistsAtPath:OnboardedMarkerPath()];
+static BOOL IsReady(void) {
+    return [[NSFileManager defaultManager] fileExistsAtPath:OnboardedPath()];
 }
 
-static void MarkOnboardingCompleted(void) {
-    NSString *dir = SupportDirectory();
-    [[NSFileManager defaultManager] createDirectoryAtPath:dir
-                              withIntermediateDirectories:YES
-                                               attributes:nil
-                                                    error:nil];
-    [@"" writeToFile:OnboardedMarkerPath() atomically:YES encoding:NSUTF8StringEncoding error:nil];
+static void MarkReady(void) {
+    [[NSFileManager defaultManager] createDirectoryAtPath:SupportDir()
+                            withIntermediateDirectories:YES
+                                             attributes:nil
+                                                  error:nil];
+    [@"" writeToFile:OnboardedPath() atomically:YES encoding:NSUTF8StringEncoding error:nil];
 }
 
-static BOOL HasLaunchFlag(NSString *flag) {
+static BOOL HasFlag(NSString *flag) {
     for (NSString *arg in [NSProcessInfo processInfo].arguments) {
         if ([arg isEqualToString:flag]) {
             return YES;
@@ -34,146 +32,218 @@ static BOOL HasLaunchFlag(NSString *flag) {
     return NO;
 }
 
-static NSAttributedString *BodyText(NSString *text) {
-    return [[NSAttributedString alloc] initWithString:text
-                                           attributes:@{
-                                               NSFontAttributeName : [NSFont systemFontOfSize:13],
-                                               NSForegroundColorAttributeName : [NSColor labelColor],
-                                           }];
+static BOOL URLIsGoUp(NSURL *url) {
+    if (![url.scheme isEqualToString:@"finder-go-up"]) {
+        return NO;
+    }
+    NSString *host = url.host.lowercaseString;
+    NSString *path = url.path.lowercaseString;
+    return [host isEqualToString:@"go-up"] || [path isEqualToString:@"/go-up"] || [path isEqualToString:@"go-up"];
 }
 
-static NSButton *MakeButton(NSString *title, NSView *superview) {
-    NSButton *button = [NSButton buttonWithTitle:title target:nil action:NULL];
+static NSTextField *MakeLabel(NSString *text, NSFont *font, NSColor *color) {
+    NSTextField *field = [NSTextField labelWithString:text];
+    field.font = font;
+    field.textColor = color;
+    field.lineBreakMode = NSLineBreakByWordWrapping;
+    field.maximumNumberOfLines = 0;
+    field.translatesAutoresizingMaskIntoConstraints = NO;
+    return field;
+}
+
+static NSButton *PrimaryButton(NSString *title) {
+    NSButton *button = [NSButton buttonWithTitle:@"" target:nil action:NULL];
     button.bezelStyle = NSBezelStyleRounded;
     button.translatesAutoresizingMaskIntoConstraints = NO;
-    [superview addSubview:button];
+    button.bezelColor = [NSColor controlAccentColor];
+    button.attributedTitle = [[NSAttributedString alloc]
+        initWithString:title
+            attributes:@{
+                NSFontAttributeName : [NSFont systemFontOfSize:13 weight:NSFontWeightSemibold],
+                NSForegroundColorAttributeName : [NSColor whiteColor],
+            }];
     return button;
 }
 
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 @property (strong) NSWindow *window;
-@property (assign) BOOL onboardingMode;
+@property (strong) NSTextField *statusLabel;
+@property (assign) BOOL headless;
+@property (assign) BOOL pendingGoUp;
 @end
 
 @implementation AppDelegate
 
+- (BOOL)navigateSilently {
+    NSDictionary *error = nil;
+    if (FGU_NavigateUpDirectWithError(&error)) {
+        NSBeep();
+        return YES;
+    }
+    return NO;
+}
+
+- (void)application:(NSApplication *)application openURLs:(NSArray<NSURL *> *)urls {
+    (void)application;
+    for (NSURL *url in urls) {
+        if (URLIsGoUp(url)) {
+            self.headless = YES;
+            self.pendingGoUp = YES;
+            if (self.window) {
+                [self navigateSilently];
+                [NSApp terminate:nil];
+            }
+            return;
+        }
+    }
+}
+
+- (void)registerServices {
+    [NSApp setServicesProvider:self];
+    NSUpdateDynamicServices();
+}
+
+- (void)finderGoUp:(NSPasteboard *)pboard userData:(NSString *)userData error:(NSString **)error {
+    (void)pboard;
+    (void)userData;
+    (void)error;
+    self.headless = YES;
+    [self navigateSilently];
+    [NSApp terminate:nil];
+}
+
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
     (void)notification;
+    [self registerServices];
 
-    if (HasLaunchFlag(@"--go-up")) {
-        FGU_NavigateUp();
+    if (self.pendingGoUp || HasFlag(@"--go-up")) {
+        [self navigateSilently];
         [NSApp terminate:nil];
         return;
     }
 
-    if (HasLaunchFlag(@"--check-onboarding") && IsOnboardingCompleted()) {
+    if (IsReady() && !HasFlag(@"--show")) {
+        [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
         [NSApp terminate:nil];
         return;
     }
 
-    self.onboardingMode = !IsOnboardingCompleted();
-    [self showMainWindow];
+    [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+    [self showWindow];
     [NSApp activateIgnoringOtherApps:YES];
 }
 
-- (void)showMainWindow {
+- (void)refreshStatus {
+    if (!self.statusLabel) {
+        return;
+    }
+    if (FGU_HasFinderAutomationAccess()) {
+        self.statusLabel.stringValue = @"已授权控制访达";
+        self.statusLabel.textColor = [NSColor systemGreenColor];
+    } else {
+        self.statusLabel.stringValue = @"尚未授权，请点击下方按钮";
+        self.statusLabel.textColor = [NSColor systemOrangeColor];
+    }
+}
+
+- (void)showWindow {
     if (self.window) {
+        [self refreshStatus];
         [self.window makeKeyAndOrderFront:nil];
         return;
     }
 
-    const CGFloat width = 500;
-    const CGFloat height = self.onboardingMode ? 520 : 360;
+    const CGFloat pad = 24;
     self.window = [[NSWindow alloc]
-        initWithContentRect:NSMakeRect(0, 0, width, height)
+        initWithContentRect:NSMakeRect(0, 0, 400, 100)
                   styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable)
                     backing:NSBackingStoreBuffered
                       defer:NO];
     self.window.title = [NSString stringWithUTF8String:FGU_APP_NAME];
     self.window.releasedWhenClosed = NO;
-    [self.window center];
 
-    NSView *content = self.window.contentView;
-    CGFloat y = height - 32;
+    NSView *root = [[NSView alloc] initWithFrame:NSZeroRect];
+    root.translatesAutoresizingMaskIntoConstraints = NO;
+    self.window.contentView = root;
 
-    NSTextField *title = [NSTextField labelWithString:[NSString stringWithUTF8String:FGU_APP_NAME]];
-    title.font = [NSFont boldSystemFontOfSize:22];
-    title.frame = NSMakeRect(24, y - 4, width - 48, 28);
-    [content addSubview:title];
-    y -= 40;
+    NSImageView *icon = [[NSImageView alloc] initWithFrame:NSZeroRect];
+    icon.image = [NSApp applicationIconImage];
+    icon.imageScaling = NSImageScaleProportionallyUpOrDown;
+    icon.translatesAutoresizingMaskIntoConstraints = NO;
+    [icon.widthAnchor constraintEqualToConstant:44].active = YES;
+    [icon.heightAnchor constraintEqualToConstant:44].active = YES;
 
-    NSString *subtitle = self.onboardingMode ? @"欢迎使用！按以下步骤完成配置即可使用。"
-                                             : @"在当前访达窗口返回上一级目录。";
-    NSTextField *sub = [NSTextField labelWithString:subtitle];
-    sub.font = [NSFont systemFontOfSize:13];
-    sub.textColor = [NSColor secondaryLabelColor];
-    sub.frame = NSMakeRect(24, y, width - 48, 20);
-    [content addSubview:sub];
-    y -= 28;
+    NSTextField *title = MakeLabel([NSString stringWithUTF8String:FGU_APP_NAME],
+                                   [NSFont boldSystemFontOfSize:18], [NSColor labelColor]);
+    NSTextField *usage = MakeLabel(
+        @"选中任意项目 → 右键 → 服务 → 返回上一级\n"
+        @"快捷键：⌃⌘↑",
+        [NSFont systemFontOfSize:12], [NSColor secondaryLabelColor]);
 
-    if (self.onboardingMode) {
-        NSTextView *steps = [[NSTextView alloc] initWithFrame:NSMakeRect(24, 120, width - 48, y - 128)];
-        steps.editable = NO;
-        steps.selectable = YES;
-        steps.drawsBackground = NO;
-        steps.textContainerInset = NSMakeSize(0, 0);
-        steps.textStorage.attributedString = BodyText(
-            @"1. 安装已完成，finder-go-up 已注册访达右键菜单。\n\n"
-            @"2. 打开访达，在窗口空白处右键，选择 finder-go-up。\n\n"
-            @"3. 若未看到菜单项：\n"
-            @"   系统设置 → 键盘 → 键盘快捷键 → 服务\n"
-            @"   勾选 finder-go-up，然后重启访达。\n\n"
-            @"4. 首次使用时若弹出自动化权限，请允许控制 Finder。");
-        [content addSubview:steps];
-    } else {
-        NSTextView *hint = [[NSTextView alloc] initWithFrame:NSMakeRect(24, 120, width - 48, y - 128)];
-        hint.editable = NO;
-        hint.selectable = YES;
-        hint.drawsBackground = NO;
-        hint.textContainerInset = NSMakeSize(0, 0);
-        hint.textStorage.attributedString = BodyText(
-            @"使用方式：访达窗口空白处 → 右键 → finder-go-up\n\n"
-            @"也可点击下方「试用一次」在当前访达窗口测试。");
-        [content addSubview:hint];
+    self.statusLabel = MakeLabel(@"", [NSFont systemFontOfSize:12 weight:NSFontWeightMedium],
+                                  [NSColor labelColor]);
+
+    NSButton *authorize = PrimaryButton(@"授权并试用");
+    authorize.target = self;
+    authorize.action = @selector(authorize:);
+
+    NSButton *done = [NSButton buttonWithTitle:@"完成" target:self action:@selector(finish:)];
+    done.bezelStyle = NSBezelStyleRounded;
+    done.translatesAutoresizingMaskIntoConstraints = NO;
+    done.keyEquivalent = @"\r";
+
+    for (NSView *v in @[ icon, title, usage, self.statusLabel, authorize, done ]) {
+        [root addSubview:v];
     }
 
-    NSButton *settingsButton = MakeButton(@"打开系统设置", content);
-    NSButton *tryButton = MakeButton(@"试用一次", content);
-    NSButton *doneButton = MakeButton(self.onboardingMode ? @"完成设置" : @"关闭", content);
+    [NSLayoutConstraint activateConstraints:@[
+        [icon.topAnchor constraintEqualToAnchor:root.topAnchor constant:pad],
+        [icon.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
 
-    settingsButton.target = self;
-    settingsButton.action = @selector(openSettings:);
-    tryButton.target = self;
-    tryButton.action = @selector(tryOnce:);
-    doneButton.target = self;
-    doneButton.action = @selector(finish:);
-    doneButton.keyEquivalent = @"\r";
+        [title.topAnchor constraintEqualToAnchor:icon.topAnchor constant:2],
+        [title.leadingAnchor constraintEqualToAnchor:icon.trailingAnchor constant:12],
+        [title.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
 
-    CGFloat buttonY = 24;
-    settingsButton.frame = NSMakeRect(24, buttonY, 120, 32);
-    tryButton.frame = NSMakeRect(156, buttonY, 96, 32);
-    doneButton.frame = NSMakeRect(width - 124, buttonY, 100, 32);
+        [usage.topAnchor constraintEqualToAnchor:icon.bottomAnchor constant:16],
+        [usage.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
+        [usage.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
 
+        [self.statusLabel.topAnchor constraintEqualToAnchor:usage.bottomAnchor constant:12],
+        [self.statusLabel.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
+        [self.statusLabel.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
+
+        [authorize.topAnchor constraintEqualToAnchor:self.statusLabel.bottomAnchor constant:16],
+        [authorize.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
+        [authorize.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
+
+        [done.topAnchor constraintEqualToAnchor:authorize.bottomAnchor constant:10],
+        [done.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
+        [done.bottomAnchor constraintEqualToAnchor:root.bottomAnchor constant:-pad],
+    ]];
+
+    [self.window center];
+    [self refreshStatus];
     [self.window makeKeyAndOrderFront:nil];
 }
 
-- (void)openSettings:(id)sender {
+- (void)authorize:(id)sender {
     (void)sender;
-    NSURL *url = [NSURL URLWithString:@"x-apple.systempreferences:com.apple.preference.keyboard?"
-                                      @"KeyboardShortcuts"];
-    [[NSWorkspace sharedWorkspace] openURL:url];
-}
-
-- (void)tryOnce:(id)sender {
-    (void)sender;
-    FGU_NavigateUp();
+    [[NSWorkspace sharedWorkspace] openApplicationAtURL:[NSURL fileURLWithPath:@"/System/Library/CoreServices/Finder.app"]
+                                            configuration:[NSWorkspaceOpenConfiguration configuration]
+                                        completionHandler:nil];
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = @"允许控制访达";
+    alert.informativeText = @"系统即将询问权限，请点击「允许」。";
+    [alert addButtonWithTitle:@"继续"];
+    [alert runModal];
+    [self navigateSilently];
+    [self refreshStatus];
 }
 
 - (void)finish:(id)sender {
     (void)sender;
-    if (self.onboardingMode) {
-        MarkOnboardingCompleted();
-        self.onboardingMode = NO;
+    if (FGU_HasFinderAutomationAccess()) {
+        MarkReady();
     }
     [NSApp terminate:nil];
 }
@@ -188,13 +258,11 @@ static NSButton *MakeButton(NSString *title, NSView *superview) {
 int main(int argc, const char *argv[]) {
     (void)argc;
     (void)argv;
-
     @autoreleasepool {
         NSApplication *app = [NSApplication sharedApplication];
         AppDelegate *delegate = [[AppDelegate alloc] init];
         app.delegate = delegate;
         [app run];
     }
-
     return 0;
 }
