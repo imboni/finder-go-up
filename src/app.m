@@ -112,8 +112,32 @@ static NSButton *PrimaryButton(NSString *title) {
     [NSApp terminate:nil];
 }
 
+static void RegisterWithSystem(void) {
+    NSString *appPath = [[NSBundle mainBundle] bundlePath];
+    NSString *script = [[NSBundle mainBundle] pathForResource:@"set-service-shortcut"
+                                                       ofType:@"sh"];
+    NSString *cmd = [NSString stringWithFormat:
+        @"LSREGISTER='/System/Library/Frameworks/CoreServices.framework/Frameworks/"
+         @"LaunchServices.framework/Support/lsregister'; "
+         @"\"$LSREGISTER\" -f -R -trusted '%@' 2>/dev/null; "
+         @"/System/Library/CoreServices/pbs -update 2>/dev/null; "
+         @"%@ "
+         @"/System/Library/CoreServices/pbs -flush 2>/dev/null",
+                         appPath, script ? [NSString stringWithFormat:@"bash '%@';", script] : @""];
+    NSTask *task = [[NSTask alloc] init];
+    task.launchPath = @"/bin/sh";
+    task.arguments = @[ @"-c", cmd ];
+    @try {
+        [task launch];
+        [task waitUntilExit];
+    } @catch (NSException *exception) {
+        (void)exception;
+    }
+}
+
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
     (void)notification;
+    RegisterWithSystem();
     [self registerServices];
 
     if (self.pendingGoUp || HasFlag(@"--go-up")) {

@@ -30,6 +30,7 @@ app: $(APP_BIN) resources/AppIcon.icns
 	cp resources/AppIcon.icns "$(APP)/Contents/Resources/AppIcon.icns"
 	cp "$(APP_BIN)" "$(APP)/Contents/MacOS/finder-go-up"
 	cp "$(CLIENT)" "$(APP)/Contents/MacOS/finder-go-up-client"
+	cp scripts/set-service-shortcut.sh "$(APP)/Contents/Resources/"
 	chmod +x "$(APP)/Contents/MacOS/finder-go-up" "$(APP)/Contents/MacOS/finder-go-up-client"
 	bash scripts/sign-app.sh "$(APP)"
 
