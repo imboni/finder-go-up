@@ -1,7 +1,7 @@
 BUILD_DIR := build
 PREFIX ?= $(HOME)/.local
 APP_DIR ?= $(HOME)/Applications
-VERSION := 0.0.1
+VERSION := 0.0.2
 
 CLIENT := $(BUILD_DIR)/finder-go-up-client
 APP_BIN := $(BUILD_DIR)/finder-go-up
@@ -31,6 +31,7 @@ app: $(APP_BIN) resources/AppIcon.icns
 	cp "$(APP_BIN)" "$(APP)/Contents/MacOS/finder-go-up"
 	cp "$(CLIENT)" "$(APP)/Contents/MacOS/finder-go-up-client"
 	cp scripts/set-service-shortcut.sh "$(APP)/Contents/Resources/"
+	cp scripts/register-background-agent.sh "$(APP)/Contents/Resources/"
 	chmod +x "$(APP)/Contents/MacOS/finder-go-up" "$(APP)/Contents/MacOS/finder-go-up-client"
 	bash scripts/sign-app.sh "$(APP)"
 

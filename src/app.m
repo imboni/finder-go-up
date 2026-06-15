@@ -1,31 +1,78 @@
 #import <Cocoa/Cocoa.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/file.h>
 #include "common.h"
 #include "navigate.h"
+
+static const char *FGU_INSTANCE_LOCK = "instance.lock";
+static NSString *FGUNotifyShow = @"com.acode.finder-go-up.show";
+static NSString *FGUNotifyGoUp = @"com.acode.finder-go-up.go-up";
+static int gInstanceLockFd = -1;
 
 static NSString *SupportDir(void) {
     return [NSHomeDirectory() stringByAppendingPathComponent:
             [NSString stringWithFormat:@"Library/Application Support/%s", FGU_SUPPORT_DIR]];
 }
 
-static NSString *OnboardedPath(void) {
-    return [SupportDir() stringByAppendingPathComponent:@FGU_ONBOARDED_FILE];
+static NSString *FlagPath(NSString *name) {
+    return [SupportDir() stringByAppendingPathComponent:name];
 }
 
-static BOOL IsReady(void) {
-    return [[NSFileManager defaultManager] fileExistsAtPath:OnboardedPath()];
+
+static BOOL HasFlagFile(NSString *name) {
+    return [[NSFileManager defaultManager] fileExistsAtPath:FlagPath(name)];
 }
 
-static void MarkReady(void) {
+static void SetFlagFile(NSString *name) {
     [[NSFileManager defaultManager] createDirectoryAtPath:SupportDir()
                             withIntermediateDirectories:YES
                                              attributes:nil
                                                   error:nil];
-    [@"" writeToFile:OnboardedPath() atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    [@"" writeToFile:FlagPath(name) atomically:YES encoding:NSUTF8StringEncoding error:nil];
 }
 
-static BOOL HasFlag(NSString *flag) {
+static NSString *OnboardedFlag(void) {
+    return @(FGU_ONBOARDED_FILE);
+}
+
+static NSString *RegisteredFlag(void) {
+    return @(FGU_REGISTERED_FILE);
+}
+
+static BOOL HasArg(NSString *flag) {
     for (NSString *arg in [NSProcessInfo processInfo].arguments) {
         if ([arg isEqualToString:flag]) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+static BOOL AcquireInstanceLock(void) {
+    NSString *dir = SupportDir();
+    [[NSFileManager defaultManager] createDirectoryAtPath:dir
+                            withIntermediateDirectories:YES
+                                             attributes:nil
+                                                  error:nil];
+    NSString *lockPath = [dir stringByAppendingPathComponent:@(FGU_INSTANCE_LOCK)];
+    gInstanceLockFd = open(lockPath.fileSystemRepresentation, O_CREAT | O_RDWR, 0644);
+    if (gInstanceLockFd < 0) {
+        return YES;
+    }
+    return flock(gInstanceLockFd, LOCK_EX | LOCK_NB) == 0;
+}
+
+static void NotifyPeer(NSString *name) {
+    [[NSDistributedNotificationCenter defaultCenter] postNotificationName:name
+                                                                   object:nil
+                                                                 userInfo:nil
+                                                       deliverImmediately:YES];
+}
+
+static BOOL LaunchedForService(void) {
+    for (NSString *arg in [NSProcessInfo processInfo].arguments) {
+        if ([arg isEqualToString:@"-NSService"]) {
             return YES;
         }
     }
@@ -41,43 +88,35 @@ static BOOL URLIsGoUp(NSURL *url) {
     return [host isEqualToString:@"go-up"] || [path isEqualToString:@"/go-up"] || [path isEqualToString:@"go-up"];
 }
 
-static NSTextField *MakeLabel(NSString *text, NSFont *font, NSColor *color) {
-    NSTextField *field = [NSTextField labelWithString:text];
-    field.font = font;
-    field.textColor = color;
-    field.lineBreakMode = NSLineBreakByWordWrapping;
-    field.maximumNumberOfLines = 0;
-    field.translatesAutoresizingMaskIntoConstraints = NO;
-    return field;
-}
-
-static NSButton *PrimaryButton(NSString *title) {
-    NSButton *button = [NSButton buttonWithTitle:@"" target:nil action:NULL];
-    button.bezelStyle = NSBezelStyleRounded;
-    button.translatesAutoresizingMaskIntoConstraints = NO;
-    button.bezelColor = [NSColor controlAccentColor];
-    button.attributedTitle = [[NSAttributedString alloc]
-        initWithString:title
-            attributes:@{
-                NSFontAttributeName : [NSFont systemFontOfSize:13 weight:NSFontWeightSemibold],
-                NSForegroundColorAttributeName : [NSColor whiteColor],
-            }];
-    return button;
-}
-
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 @property (strong) NSWindow *window;
 @property (strong) NSTextField *statusLabel;
-@property (assign) BOOL headless;
 @property (assign) BOOL pendingGoUp;
 @end
+
+static void RegisterAppWithLaunchServices(void) {
+    NSString *appPath = [[NSBundle mainBundle] bundlePath];
+    NSString *cmd =
+        @"LSREGISTER='/System/Library/Frameworks/CoreServices.framework/Frameworks/"
+         @"LaunchServices.framework/Support/lsregister'; "
+         @"\"$LSREGISTER\" -f -R -trusted '%@' 2>/dev/null; "
+         @"/System/Library/CoreServices/pbs -update 2>/dev/null";
+    NSTask *task = [[NSTask alloc] init];
+    task.launchPath = @"/bin/sh";
+    task.arguments = @[ @"-c", [NSString stringWithFormat:cmd, appPath] ];
+    @try {
+        [task launch];
+        [task waitUntilExit];
+    } @catch (NSException *exception) {
+        (void)exception;
+    }
+}
 
 @implementation AppDelegate
 
 - (BOOL)navigateSilently {
     NSDictionary *error = nil;
     if (FGU_NavigateUpDirectWithError(&error)) {
-        NSBeep();
         return YES;
     }
     return NO;
@@ -87,7 +126,6 @@ static NSButton *PrimaryButton(NSString *title) {
     (void)application;
     for (NSURL *url in urls) {
         if (URLIsGoUp(url)) {
-            self.headless = YES;
             self.pendingGoUp = YES;
             if (self.window) {
                 [self navigateSilently];
@@ -98,7 +136,31 @@ static NSButton *PrimaryButton(NSString *title) {
     }
 }
 
-- (void)registerServices {
+- (void)handleShowFromPeer:(NSNotification *)notification {
+    (void)notification;
+    [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+    [self showWindow];
+    [NSApp activateIgnoringOtherApps:YES];
+}
+
+- (void)handleGoUpFromPeer:(NSNotification *)notification {
+    (void)notification;
+    [self finderGoUp:nil userData:nil error:nil];
+}
+
+- (void)setupPeerNotifications {
+    NSDistributedNotificationCenter *center = [NSDistributedNotificationCenter defaultCenter];
+    [center addObserver:self
+               selector:@selector(handleShowFromPeer:)
+                   name:FGUNotifyShow
+                 object:nil];
+    [center addObserver:self
+               selector:@selector(handleGoUpFromPeer:)
+                   name:FGUNotifyGoUp
+                 object:nil];
+}
+
+- (void)registerServiceHandler {
     [NSApp setServicesProvider:self];
     NSUpdateDynamicServices();
 }
@@ -107,54 +169,87 @@ static NSButton *PrimaryButton(NSString *title) {
     (void)pboard;
     (void)userData;
     (void)error;
-    self.headless = YES;
-    [self navigateSilently];
-    [NSApp terminate:nil];
+    if (![self navigateSilently]) {
+        NSBeep();
+    }
 }
 
-static void RegisterWithSystem(void) {
-    NSString *appPath = [[NSBundle mainBundle] bundlePath];
+- (void)configureServiceShortcutIfNeeded {
+    if (HasFlagFile(RegisteredFlag())) {
+        return;
+    }
+
     NSString *script = [[NSBundle mainBundle] pathForResource:@"set-service-shortcut"
                                                        ofType:@"sh"];
-    NSString *cmd = [NSString stringWithFormat:
-        @"LSREGISTER='/System/Library/Frameworks/CoreServices.framework/Frameworks/"
-         @"LaunchServices.framework/Support/lsregister'; "
-         @"\"$LSREGISTER\" -f -R -trusted '%@' 2>/dev/null; "
-         @"/System/Library/CoreServices/pbs -update 2>/dev/null; "
-         @"%@ "
-         @"/System/Library/CoreServices/pbs -flush 2>/dev/null",
-                         appPath, script ? [NSString stringWithFormat:@"bash '%@';", script] : @""];
+    if (!script) {
+        return;
+    }
+
     NSTask *task = [[NSTask alloc] init];
     task.launchPath = @"/bin/sh";
-    task.arguments = @[ @"-c", cmd ];
+    task.arguments = @[ script ];
     @try {
         [task launch];
         [task waitUntilExit];
+        NSTask *flush = [[NSTask alloc] init];
+        flush.launchPath = @"/bin/sh";
+        flush.arguments = @[ @"-c", @"/System/Library/CoreServices/pbs -flush 2>/dev/null" ];
+        [flush launch];
+        [flush waitUntilExit];
+        SetFlagFile(RegisteredFlag());
     } @catch (NSException *exception) {
         (void)exception;
     }
 }
 
+- (void)registerWithSystemIfNeeded {
+    RegisterAppWithLaunchServices();
+    [self configureServiceShortcutIfNeeded];
+}
+
+- (void)applicationWillFinishLaunching:(NSNotification *)notification {
+    (void)notification;
+
+    if (!AcquireInstanceLock()) {
+        if (HasArg(@"--show")) {
+            NotifyPeer(FGUNotifyShow);
+        } else if (HasArg(@"--go-up") || LaunchedForService()) {
+            NotifyPeer(FGUNotifyGoUp);
+        }
+        [NSApp terminate:nil];
+        return;
+    }
+
+    [self setupPeerNotifications];
+    [self registerServiceHandler];
+}
+
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
     (void)notification;
-    RegisterWithSystem();
-    [self registerServices];
+    [self registerWithSystemIfNeeded];
+    [self registerServiceHandler];
 
-    if (self.pendingGoUp || HasFlag(@"--go-up")) {
+    if (HasArg(@"--quit")) {
+        [NSApp terminate:nil];
+        return;
+    }
+
+    if (self.pendingGoUp || HasArg(@"--go-up")) {
         [self navigateSilently];
-        [NSApp terminate:nil];
+        if (!HasFlagFile(OnboardedFlag())) {
+            [NSApp terminate:nil];
+        }
         return;
     }
 
-    if (IsReady() && !HasFlag(@"--show")) {
-        [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
-        [NSApp terminate:nil];
+    if (HasArg(@"--show") || !HasFlagFile(OnboardedFlag())) {
+        [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+        [self showWindow];
+        [NSApp activateIgnoringOtherApps:YES];
         return;
     }
 
-    [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
-    [self showWindow];
-    [NSApp activateIgnoringOtherApps:YES];
+    [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
 }
 
 - (void)refreshStatus {
@@ -162,25 +257,12 @@ static void RegisterWithSystem(void) {
         return;
     }
     if (FGU_HasFinderAutomationAccess()) {
-        self.statusLabel.stringValue = @"已授权控制访达";
+        self.statusLabel.stringValue = @"✓ 已授权，可直接使用";
         self.statusLabel.textColor = [NSColor systemGreenColor];
     } else {
-        self.statusLabel.stringValue = @"尚未授权，请点击下方按钮";
-        self.statusLabel.textColor = [NSColor systemOrangeColor];
+        self.statusLabel.stringValue = @"需要允许控制「访达」";
+        self.statusLabel.textColor = [NSColor secondaryLabelColor];
     }
-}
-
-static NSView *CardView(void) {
-    NSView *card = [[NSView alloc] initWithFrame:NSZeroRect];
-    card.wantsLayer = YES;
-    card.layer.cornerRadius = 12;
-    card.layer.borderWidth = 1;
-    if (@available(macOS 10.14, *)) {
-        card.layer.backgroundColor = [[NSColor controlBackgroundColor] CGColor];
-        card.layer.borderColor = [[NSColor separatorColor] CGColor];
-    }
-    card.translatesAutoresizingMaskIntoConstraints = NO;
-    return card;
 }
 
 - (void)showWindow {
@@ -190,9 +272,9 @@ static NSView *CardView(void) {
         return;
     }
 
-    const CGFloat pad = 32;
+    const CGFloat pad = 24;
     self.window = [[NSWindow alloc]
-        initWithContentRect:NSMakeRect(0, 0, 420, 100)
+        initWithContentRect:NSMakeRect(0, 0, 360, 220)
                   styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable)
                     backing:NSBackingStoreBuffered
                       defer:NO];
@@ -203,78 +285,69 @@ static NSView *CardView(void) {
     root.translatesAutoresizingMaskIntoConstraints = NO;
     self.window.contentView = root;
 
-    NSImageView *icon = [[NSImageView alloc] initWithFrame:NSZeroRect];
-    icon.image = [NSApp applicationIconImage];
-    icon.imageScaling = NSImageScaleProportionallyUpOrDown;
-    icon.translatesAutoresizingMaskIntoConstraints = NO;
-    [icon.widthAnchor constraintEqualToConstant:128].active = YES;
-    [icon.heightAnchor constraintEqualToConstant:128].active = YES;
+    NSTextField *title = [NSTextField labelWithString:
+        [NSString stringWithUTF8String:"返回上一级目录"]];
+    title.font = [NSFont boldSystemFontOfSize:16];
+    title.translatesAutoresizingMaskIntoConstraints = NO;
 
-    NSTextField *title = MakeLabel([NSString stringWithUTF8String:FGU_APP_NAME],
-                                   [NSFont boldSystemFontOfSize:22], [NSColor labelColor]);
-    title.alignment = NSTextAlignmentCenter;
-
-    NSTextField *subtitle = MakeLabel(@"访达返回上一级",
-                                      [NSFont systemFontOfSize:13], [NSColor secondaryLabelColor]);
-    subtitle.alignment = NSTextAlignmentCenter;
-
-    NSView *card = CardView();
-    NSTextField *usage = MakeLabel(
-        @"选中任意项目 → 右键 → 服务 → 返回上一级\n"
-        @"快捷键：⌃⌘↑",
-        [NSFont systemFontOfSize:13], [NSColor labelColor]);
-    [card addSubview:usage];
+    NSTextField *usage = [NSTextField labelWithString:
+        [NSString stringWithUTF8String:
+            "访达中选中任意项目 -> 右键 -> 服务 -> 返回上一级\n"
+            "快捷键 Control+Command+上箭头"]];
+    usage.font = [NSFont systemFontOfSize:12];
+    usage.textColor = [NSColor secondaryLabelColor];
+    usage.lineBreakMode = NSLineBreakByWordWrapping;
+    usage.maximumNumberOfLines = 0;
     usage.translatesAutoresizingMaskIntoConstraints = NO;
-    [NSLayoutConstraint activateConstraints:@[
-        [usage.topAnchor constraintEqualToAnchor:card.topAnchor constant:14],
-        [usage.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:16],
-        [usage.trailingAnchor constraintEqualToAnchor:card.trailingAnchor constant:-16],
-        [usage.bottomAnchor constraintEqualToAnchor:card.bottomAnchor constant:-14],
-    ]];
 
-    self.statusLabel = MakeLabel(@"", [NSFont systemFontOfSize:12 weight:NSFontWeightMedium],
-                                  [NSColor labelColor]);
-    self.statusLabel.alignment = NSTextAlignmentCenter;
+    self.statusLabel = [NSTextField labelWithString:@""];
+    self.statusLabel.font = [NSFont systemFontOfSize:12];
+    self.statusLabel.translatesAutoresizingMaskIntoConstraints = NO;
 
-    NSButton *authorize = PrimaryButton(@"授权并试用");
-    authorize.target = self;
-    authorize.action = @selector(authorize:);
+    NSButton *authorize = [NSButton buttonWithTitle:@"允许控制访达"
+                                             target:self
+                                             action:@selector(requestAccess:)];
+    authorize.bezelStyle = NSBezelStyleRounded;
+    authorize.translatesAutoresizingMaskIntoConstraints = NO;
 
-    NSButton *done = [NSButton buttonWithTitle:@"完成" target:self action:@selector(finish:)];
+    NSButton *tryButton = [NSButton buttonWithTitle:@"试用一次"
+                                              target:self
+                                              action:@selector(tryOnce:)];
+    tryButton.bezelStyle = NSBezelStyleRounded;
+    tryButton.translatesAutoresizingMaskIntoConstraints = NO;
+
+    NSButton *done = [NSButton buttonWithTitle:@"完成"
+                                        target:self
+                                        action:@selector(finish:)];
     done.bezelStyle = NSBezelStyleRounded;
     done.translatesAutoresizingMaskIntoConstraints = NO;
     done.keyEquivalent = @"\r";
 
-    for (NSView *v in @[ icon, title, subtitle, card, self.statusLabel, authorize, done ]) {
+    for (NSView *v in @[ title, usage, self.statusLabel, authorize, tryButton, done ]) {
         [root addSubview:v];
     }
 
     [NSLayoutConstraint activateConstraints:@[
-        [icon.topAnchor constraintEqualToAnchor:root.topAnchor constant:pad],
-        [icon.centerXAnchor constraintEqualToAnchor:root.centerXAnchor],
-
-        [title.topAnchor constraintEqualToAnchor:icon.bottomAnchor constant:16],
+        [title.topAnchor constraintEqualToAnchor:root.topAnchor constant:pad],
         [title.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
         [title.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
 
-        [subtitle.topAnchor constraintEqualToAnchor:title.bottomAnchor constant:4],
-        [subtitle.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
-        [subtitle.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
+        [usage.topAnchor constraintEqualToAnchor:title.bottomAnchor constant:12],
+        [usage.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
+        [usage.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
 
-        [card.topAnchor constraintEqualToAnchor:subtitle.bottomAnchor constant:20],
-        [card.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
-        [card.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
-
-        [self.statusLabel.topAnchor constraintEqualToAnchor:card.bottomAnchor constant:16],
+        [self.statusLabel.topAnchor constraintEqualToAnchor:usage.bottomAnchor constant:16],
         [self.statusLabel.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
         [self.statusLabel.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
 
-        [authorize.topAnchor constraintEqualToAnchor:self.statusLabel.bottomAnchor constant:16],
+        [authorize.topAnchor constraintEqualToAnchor:self.statusLabel.bottomAnchor constant:12],
         [authorize.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
-        [authorize.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
 
-        [done.topAnchor constraintEqualToAnchor:authorize.bottomAnchor constant:10],
-        [done.centerXAnchor constraintEqualToAnchor:root.centerXAnchor],
+        [tryButton.centerYAnchor constraintEqualToAnchor:authorize.centerYAnchor],
+        [tryButton.leadingAnchor constraintEqualToAnchor:authorize.trailingAnchor constant:8],
+
+        [done.topAnchor constraintEqualToAnchor:authorize.bottomAnchor constant:12],
+        [done.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
         [done.bottomAnchor constraintEqualToAnchor:root.bottomAnchor constant:-pad],
     ]];
 
@@ -283,31 +356,58 @@ static NSView *CardView(void) {
     [self.window makeKeyAndOrderFront:nil];
 }
 
-- (void)authorize:(id)sender {
+- (void)requestAccess:(id)sender {
     (void)sender;
-    [[NSWorkspace sharedWorkspace] openApplicationAtURL:[NSURL fileURLWithPath:@"/System/Library/CoreServices/Finder.app"]
-                                            configuration:[NSWorkspaceOpenConfiguration configuration]
-                                        completionHandler:nil];
-    NSAlert *alert = [[NSAlert alloc] init];
-    alert.messageText = @"允许控制访达";
-    alert.informativeText = @"系统即将询问权限，请点击「允许」。";
-    [alert addButtonWithTitle:@"继续"];
-    [alert runModal];
-    [self navigateSilently];
+    FGU_RequestFinderAutomationAccess();
     [self refreshStatus];
+}
+
+- (void)tryOnce:(id)sender {
+    (void)sender;
+    if ([self navigateSilently]) {
+        self.statusLabel.stringValue = @"✓ 已返回上一级";
+        self.statusLabel.textColor = [NSColor systemGreenColor];
+        return;
+    }
+    if (!FGU_HasFinderAutomationAccess()) {
+        self.statusLabel.stringValue = @"请先点击「允许控制访达」";
+        self.statusLabel.textColor = [NSColor systemOrangeColor];
+        return;
+    }
+    self.statusLabel.stringValue = @"请先在访达中打开一个文件夹";
+    self.statusLabel.textColor = [NSColor systemOrangeColor];
+}
+
+- (void)enableBackgroundAgent {
+    NSString *script = [[NSBundle mainBundle] pathForResource:@"register-background-agent"
+                                                       ofType:@"sh"];
+    if (!script) {
+        return;
+    }
+    NSString *appPath = [[NSBundle mainBundle] bundlePath];
+    NSTask *task = [[NSTask alloc] init];
+    task.launchPath = @"/bin/bash";
+    task.arguments = @[ script, appPath, @"--agent-only" ];
+    @try {
+        [task launch];
+    } @catch (NSException *exception) {
+        (void)exception;
+    }
 }
 
 - (void)finish:(id)sender {
     (void)sender;
     if (FGU_HasFinderAutomationAccess()) {
-        MarkReady();
+        SetFlagFile(OnboardedFlag());
+        [self enableBackgroundAgent];
     }
-    [NSApp terminate:nil];
+    [self.window orderOut:nil];
+    [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
     (void)sender;
-    return YES;
+    return NO;
 }
 
 @end

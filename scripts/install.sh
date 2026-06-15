@@ -19,6 +19,6 @@ install -m 755 "$APP_PATH/Contents/MacOS/finder-go-up-client" "$PREFIX/bin/finde
 bash "$ROOT/scripts/register-app-service.sh" "$APP_PATH"
 
 rm -f "$HOME/Library/Application Support/finder-go-up/onboarded"
-open -a "$APP_PATH" --args --show
+open -a "$APP_PATH"
 
 echo "Installed finder-go-up → $APP_PATH"

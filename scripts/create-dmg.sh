@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VERSION="${VERSION:-0.0.1}"
+VERSION="${VERSION:-0.0.2}"
 APP="$ROOT/build/finder-go-up.app"
 DMG="$ROOT/dist/finder-go-up-${VERSION}.dmg"
 STAGE="$ROOT/build/dmg-stage"

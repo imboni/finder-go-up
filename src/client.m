@@ -6,7 +6,7 @@ int main(int argc, const char *argv[]) {
     (void)argv;
 
     @autoreleasepool {
-        FGU_NavigateUp();
+        FGU_NavigateUpDirect();
     }
 
     return 0;

@@ -16,8 +16,8 @@ rm -rf "$HOME/Library/Services/返回上一级.workflow"
 bash "$ROOT/scripts/set-service-shortcut.sh"
 /System/Library/CoreServices/pbs -flush 2>/dev/null || true
 
-if pgrep -x Finder >/dev/null 2>&1; then
-  killall Finder 2>/dev/null || true
-  sleep 0.5
-  open -a Finder
-fi
+SUPPORT="$HOME/Library/Application Support/finder-go-up"
+mkdir -p "$SUPPORT"
+touch "$SUPPORT/services-registered"
+
+echo "Registered finder-go-up service (no Finder restart needed)."

@@ -5,5 +5,6 @@
 #define FGU_APP_NAME "finder-go-up"
 #define FGU_SUPPORT_DIR "finder-go-up"
 #define FGU_ONBOARDED_FILE "onboarded"
+#define FGU_REGISTERED_FILE "services-registered"
 
 #endif

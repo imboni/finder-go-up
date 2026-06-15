@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VERSION="${VERSION:-0.0.1}"
+VERSION="${VERSION:-0.0.2}"
 
 make -C "$ROOT" clean all
 bash "$ROOT/scripts/create-dmg.sh"

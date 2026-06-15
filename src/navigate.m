@@ -4,7 +4,6 @@
 static BOOL RunNavigationScript(NSDictionary **errorOut) {
     NSAppleScript *script = [[NSAppleScript alloc] initWithSource:
         @"tell application \"Finder\"\n"
-         @"  activate\n"
          @"  if (count of windows) is 0 then error \"没有打开的访达窗口\"\n"
          @"  set here to target of front window\n"
          @"  try\n"
@@ -47,4 +46,8 @@ BOOL FGU_HasFinderAutomationAccess(void) {
     NSAppleScript *script = [[NSAppleScript alloc] initWithSource:
         @"tell application \"Finder\" to return name"];
     return [script executeAndReturnError:&error] != nil && error == nil;
+}
+
+BOOL FGU_RequestFinderAutomationAccess(void) {
+    return FGU_HasFinderAutomationAccess();
 }

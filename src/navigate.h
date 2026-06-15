@@ -8,5 +8,6 @@ void FGU_NavigateUpDirect(void);
 BOOL FGU_NavigateUpWithError(NSDictionary **errorOut);
 BOOL FGU_NavigateUpDirectWithError(NSDictionary **errorOut);
 BOOL FGU_HasFinderAutomationAccess(void);
+BOOL FGU_RequestFinderAutomationAccess(void);
 
 #endif
