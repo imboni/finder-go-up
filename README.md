@@ -21,7 +21,7 @@ App 会在后台保持运行，右键服务即可使用。之后再次打开 App
 open -a ~/Applications/finder-go-up.app --args --show
 ```
 
-设置界面包含：授权状态、自动检查更新、产品信息与 GitHub 链接。
+设置界面包含：授权状态、第三方接入说明、自动检查更新、产品信息与 GitHub 链接。
 
 ## 第三方接入
 

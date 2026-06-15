@@ -116,6 +116,36 @@ static NSTextField *SectionHeading(NSString *text) {
                  [NSColor secondaryLabelColor]);
 }
 
+static NSView *CodeBlockView(NSString *text) {
+    NSView *wrap = [[NSView alloc] initWithFrame:NSZeroRect];
+    wrap.wantsLayer = YES;
+    wrap.layer.cornerRadius = 6;
+    if (@available(macOS 10.14, *)) {
+        wrap.layer.backgroundColor = [[NSColor quaternarySystemFillColor] CGColor];
+    }
+    wrap.translatesAutoresizingMaskIntoConstraints = NO;
+
+    NSTextField *field = [[NSTextField alloc] initWithFrame:NSZeroRect];
+    field.stringValue = text;
+    field.bezeled = NO;
+    field.drawsBackground = NO;
+    field.editable = NO;
+    field.selectable = YES;
+    field.font = [NSFont monospacedSystemFontOfSize:11 weight:NSFontWeightRegular];
+    field.textColor = [NSColor labelColor];
+    field.lineBreakMode = NSLineBreakByCharWrapping;
+    field.maximumNumberOfLines = 0;
+    field.translatesAutoresizingMaskIntoConstraints = NO;
+    [wrap addSubview:field];
+    [NSLayoutConstraint activateConstraints:@[
+        [field.topAnchor constraintEqualToAnchor:wrap.topAnchor constant:10],
+        [field.leadingAnchor constraintEqualToAnchor:wrap.leadingAnchor constant:10],
+        [field.trailingAnchor constraintEqualToAnchor:wrap.trailingAnchor constant:-10],
+        [field.bottomAnchor constraintEqualToAnchor:wrap.bottomAnchor constant:-10],
+    ]];
+    return wrap;
+}
+
 static NSButton *PrimaryButton(NSString *title, id target, SEL action) {
     NSButton *button = [NSButton buttonWithTitle:title target:target action:action];
     button.bezelStyle = NSBezelStyleRounded;
@@ -152,6 +182,7 @@ static void FillCard(NSView *card, NSView *content, CGFloat inset) {
 @property (strong) NSTextField *statusLabel;
 @property (strong) NSTextField *updateStatusLabel;
 @property (strong) NSButton *autoCheckButton;
+@property (copy) NSString *integrationCommands;
 @property (assign) BOOL pendingGoUp;
 @end
 
@@ -400,6 +431,16 @@ static void RegisterAppWithLaunchServices(void) {
     [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:@FGU_RELEASES_URL]];
 }
 
+- (void)copyIntegrationCommands:(id)sender {
+    (void)sender;
+    if (self.integrationCommands.length == 0) {
+        return;
+    }
+    NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
+    [pasteboard clearContents];
+    [pasteboard setString:self.integrationCommands forType:NSPasteboardTypeString];
+}
+
 - (void)showWindow {
     if (self.window) {
         [self refreshStatus];
@@ -413,7 +454,7 @@ static void RegisterAppWithLaunchServices(void) {
     const CGFloat cardInset = 16;
 
     self.window = [[NSWindow alloc]
-        initWithContentRect:NSMakeRect(0, 0, 400, 560)
+        initWithContentRect:NSMakeRect(0, 0, 400, 640)
                   styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable)
                     backing:NSBackingStoreBuffered
                       defer:NO];
@@ -469,6 +510,33 @@ static void RegisterAppWithLaunchServices(void) {
     usageContent.translatesAutoresizingMaskIntoConstraints = NO;
     FillCard(usageCard, usageContent, cardInset);
 
+    NSTextField *integrateHeading = SectionHeading(@"第三方接入");
+    NSView *integrateCard = CardView();
+    NSTextField *integrateIntro = Label(
+        [NSString stringWithUTF8String:"可被脚本、快捷指令或其他 App 调用"],
+        [NSFont systemFontOfSize:12], [NSColor secondaryLabelColor]);
+    self.integrationCommands =
+        @"finder-go-up\n"
+        @"open finder-go-up://go-up";
+    NSView *integrateCode = CodeBlockView(self.integrationCommands);
+    NSTextField *integrateCli = Label(
+        [NSString stringWithUTF8String:
+            "安装 CLI（可选）：\n"
+            "ln -sf ~/Applications/finder-go-up.app/Contents/MacOS/finder-go-up-client /usr/local/bin/finder-go-up"],
+        [NSFont monospacedSystemFontOfSize:10 weight:NSFontWeightRegular],
+        [NSColor tertiaryLabelColor]);
+    NSButton *copyCommands = SecondaryButton(@"复制命令", self, @selector(copyIntegrationCommands:));
+
+    NSStackView *integrateContent = [NSStackView stackViewWithViews:@[
+        integrateIntro, integrateCode, copyCommands, integrateCli
+    ]];
+    integrateContent.orientation = NSUserInterfaceLayoutOrientationVertical;
+    integrateContent.spacing = 10;
+    integrateContent.alignment = NSLayoutAttributeLeading;
+    integrateContent.translatesAutoresizingMaskIntoConstraints = NO;
+    FillCard(integrateCard, integrateContent, cardInset);
+    [integrateCode.widthAnchor constraintEqualToAnchor:integrateContent.widthAnchor].active = YES;
+
     NSTextField *updateHeading = SectionHeading(@"更新");
     NSView *updateCard = CardView();
     self.autoCheckButton = [NSButton checkboxWithTitle:@"自动检查更新（每天一次）"
@@ -516,8 +584,8 @@ static void RegisterAppWithLaunchServices(void) {
     [done.heightAnchor constraintEqualToConstant:32].active = YES;
 
     for (NSView *v in @[
-        icon, title, subtitle, usageHeading, usageCard, updateHeading, updateCard,
-        aboutHeading, aboutCard, done
+        icon, title, subtitle, usageHeading, usageCard, integrateHeading, integrateCard,
+        updateHeading, updateCard, aboutHeading, aboutCard, done
     ]) {
         [root addSubview:v];
     }
@@ -543,7 +611,14 @@ static void RegisterAppWithLaunchServices(void) {
         [usageCard.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:outer],
         [usageCard.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-outer],
 
-        [updateHeading.topAnchor constraintEqualToAnchor:usageCard.bottomAnchor constant:16],
+        [integrateHeading.topAnchor constraintEqualToAnchor:usageCard.bottomAnchor constant:16],
+        [integrateHeading.leadingAnchor constraintEqualToAnchor:usageHeading.leadingAnchor],
+
+        [integrateCard.topAnchor constraintEqualToAnchor:integrateHeading.bottomAnchor constant:6],
+        [integrateCard.leadingAnchor constraintEqualToAnchor:usageCard.leadingAnchor],
+        [integrateCard.trailingAnchor constraintEqualToAnchor:usageCard.trailingAnchor],
+
+        [updateHeading.topAnchor constraintEqualToAnchor:integrateCard.bottomAnchor constant:16],
         [updateHeading.leadingAnchor constraintEqualToAnchor:usageHeading.leadingAnchor],
 
         [updateCard.topAnchor constraintEqualToAnchor:updateHeading.bottomAnchor constant:6],
