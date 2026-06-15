@@ -21,6 +21,8 @@ App 会在后台保持运行，右键服务即可使用。之后再次打开 App
 open -a ~/Applications/finder-go-up.app --args --show
 ```
 
+设置界面包含：授权状态、自动检查更新、产品信息与 GitHub 链接。
+
 ## 第三方接入
 
 ```bash
@@ -43,7 +45,7 @@ bash scripts/uninstall.sh
 ## 构建
 
 ```bash
-make package   # → dist/finder-go-up-0.0.2.dmg
+make package   # → dist/finder-go-up-0.0.3.dmg
 ```
 
 要求 macOS 13+

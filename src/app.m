@@ -4,6 +4,7 @@
 #include <sys/file.h>
 #include "common.h"
 #include "navigate.h"
+#include "updater.h"
 
 static const char *FGU_INSTANCE_LOCK = "instance.lock";
 static NSString *FGUNotifyShow = @"com.acode.finder-go-up.show";
@@ -18,7 +19,6 @@ static NSString *SupportDir(void) {
 static NSString *FlagPath(NSString *name) {
     return [SupportDir() stringByAppendingPathComponent:name];
 }
-
 
 static BOOL HasFlagFile(NSString *name) {
     return [[NSFileManager defaultManager] fileExistsAtPath:FlagPath(name)];
@@ -88,9 +88,28 @@ static BOOL URLIsGoUp(NSURL *url) {
     return [host isEqualToString:@"go-up"] || [path isEqualToString:@"/go-up"] || [path isEqualToString:@"go-up"];
 }
 
+static NSTextField *Label(NSString *text, NSFont *font, NSColor *color) {
+    NSTextField *field = [NSTextField labelWithString:text];
+    field.font = font;
+    field.textColor = color;
+    field.lineBreakMode = NSLineBreakByWordWrapping;
+    field.maximumNumberOfLines = 0;
+    field.translatesAutoresizingMaskIntoConstraints = NO;
+    return field;
+}
+
+static NSBox *Separator(void) {
+    NSBox *box = [[NSBox alloc] initWithFrame:NSZeroRect];
+    box.boxType = NSBoxSeparator;
+    box.translatesAutoresizingMaskIntoConstraints = NO;
+    return box;
+}
+
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 @property (strong) NSWindow *window;
 @property (strong) NSTextField *statusLabel;
+@property (strong) NSTextField *updateStatusLabel;
+@property (strong) NSButton *autoCheckButton;
 @property (assign) BOOL pendingGoUp;
 @end
 
@@ -116,10 +135,7 @@ static void RegisterAppWithLaunchServices(void) {
 
 - (BOOL)navigateSilently {
     NSDictionary *error = nil;
-    if (FGU_NavigateUpDirectWithError(&error)) {
-        return YES;
-    }
-    return NO;
+    return FGU_NavigateUpDirectWithError(&error);
 }
 
 - (void)application:(NSApplication *)application openURLs:(NSArray<NSURL *> *)urls {
@@ -150,14 +166,22 @@ static void RegisterAppWithLaunchServices(void) {
 
 - (void)setupPeerNotifications {
     NSDistributedNotificationCenter *center = [NSDistributedNotificationCenter defaultCenter];
-    [center addObserver:self
-               selector:@selector(handleShowFromPeer:)
-                   name:FGUNotifyShow
-                 object:nil];
-    [center addObserver:self
-               selector:@selector(handleGoUpFromPeer:)
-                   name:FGUNotifyGoUp
-                 object:nil];
+    [center addObserver:self selector:@selector(handleShowFromPeer:) name:FGUNotifyShow object:nil];
+    [center addObserver:self selector:@selector(handleGoUpFromPeer:) name:FGUNotifyGoUp object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(handleUpdateAvailable:)
+                                                 name:FGUUpdateAvailableNotification
+                                               object:nil];
+}
+
+- (void)handleUpdateAvailable:(NSNotification *)notification {
+    NSString *latestVersion = notification.userInfo[@"latestVersion"];
+    NSString *releaseURL = notification.userInfo[@"releaseURL"];
+    [self showUpdateResult:YES
+             latestVersion:latestVersion
+                releaseURL:releaseURL
+                     error:nil
+                    manual:YES];
 }
 
 - (void)registerServiceHandler {
@@ -178,13 +202,10 @@ static void RegisterAppWithLaunchServices(void) {
     if (HasFlagFile(RegisteredFlag())) {
         return;
     }
-
-    NSString *script = [[NSBundle mainBundle] pathForResource:@"set-service-shortcut"
-                                                       ofType:@"sh"];
+    NSString *script = [[NSBundle mainBundle] pathForResource:@"set-service-shortcut" ofType:@"sh"];
     if (!script) {
         return;
     }
-
     NSTask *task = [[NSTask alloc] init];
     task.launchPath = @"/bin/sh";
     task.arguments = @[ script ];
@@ -209,7 +230,6 @@ static void RegisterAppWithLaunchServices(void) {
 
 - (void)applicationWillFinishLaunching:(NSNotification *)notification {
     (void)notification;
-
     if (!AcquireInstanceLock()) {
         if (HasArg(@"--show")) {
             NotifyPeer(FGUNotifyShow);
@@ -219,7 +239,6 @@ static void RegisterAppWithLaunchServices(void) {
         [NSApp terminate:nil];
         return;
     }
-
     [self setupPeerNotifications];
     [self registerServiceHandler];
 }
@@ -238,7 +257,9 @@ static void RegisterAppWithLaunchServices(void) {
         [self navigateSilently];
         if (!HasFlagFile(OnboardedFlag())) {
             [NSApp terminate:nil];
+            return;
         }
+        FGU_CheckForUpdatesAutomaticallyIfNeeded();
         return;
     }
 
@@ -246,10 +267,12 @@ static void RegisterAppWithLaunchServices(void) {
         [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
         [self showWindow];
         [NSApp activateIgnoringOtherApps:YES];
+        FGU_CheckForUpdatesAutomaticallyIfNeeded();
         return;
     }
 
     [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+    FGU_CheckForUpdatesAutomaticallyIfNeeded();
 }
 
 - (void)refreshStatus {
@@ -265,16 +288,88 @@ static void RegisterAppWithLaunchServices(void) {
     }
 }
 
+- (void)showUpdateResult:(BOOL)updateAvailable
+           latestVersion:(NSString *)latestVersion
+              releaseURL:(NSString *)releaseURL
+                   error:(NSError *)error
+                  manual:(BOOL)manual {
+    if (!self.updateStatusLabel) {
+        return;
+    }
+
+    if (error) {
+        self.updateStatusLabel.stringValue = @"检查更新失败，请稍后重试";
+        self.updateStatusLabel.textColor = [NSColor systemOrangeColor];
+        return;
+    }
+
+    if (updateAvailable) {
+        self.updateStatusLabel.stringValue =
+            [NSString stringWithFormat:@"发现新版本 %@", latestVersion ?: @""];
+        self.updateStatusLabel.textColor = [NSColor systemBlueColor];
+        if (manual) {
+            NSAlert *alert = [[NSAlert alloc] init];
+            alert.messageText = @"发现新版本";
+            alert.informativeText = [NSString stringWithFormat:
+                @"当前版本 %@，最新版本 %@。",
+                FGU_CurrentVersion(), latestVersion ?: @""];
+            [alert addButtonWithTitle:@"下载"];
+            [alert addButtonWithTitle:@"取消"];
+            if ([alert runModal] == NSAlertFirstButtonReturn && releaseURL.length > 0) {
+                [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:releaseURL]];
+            }
+        }
+        return;
+    }
+
+    self.updateStatusLabel.stringValue = @"当前已是最新版本";
+    self.updateStatusLabel.textColor = [NSColor secondaryLabelColor];
+}
+
+- (void)checkUpdates:(id)sender {
+    (void)sender;
+    if (self.updateStatusLabel) {
+        self.updateStatusLabel.stringValue = @"正在检查更新…";
+        self.updateStatusLabel.textColor = [NSColor secondaryLabelColor];
+    }
+    FGU_CheckForUpdatesWithCompletion(^(BOOL updateAvailable,
+                                        NSString *latestVersion,
+                                        NSString *releaseURL,
+                                        NSError *error) {
+        [self showUpdateResult:updateAvailable
+                 latestVersion:latestVersion
+                    releaseURL:releaseURL
+                         error:error
+                        manual:YES];
+    });
+}
+
+- (void)autoCheckChanged:(id)sender {
+    FGU_SetAutoCheckUpdates([(NSButton *)sender state] == NSControlStateValueOn);
+}
+
+- (void)openGitHub:(id)sender {
+    (void)sender;
+    [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:@FGU_GITHUB_URL]];
+}
+
+- (void)openReleases:(id)sender {
+    (void)sender;
+    [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:@FGU_RELEASES_URL]];
+}
+
 - (void)showWindow {
     if (self.window) {
         [self refreshStatus];
+        self.autoCheckButton.state = FGU_AutoCheckUpdatesEnabled() ? NSControlStateValueOn
+                                                                   : NSControlStateValueOff;
         [self.window makeKeyAndOrderFront:nil];
         return;
     }
 
-    const CGFloat pad = 24;
+    const CGFloat pad = 20;
     self.window = [[NSWindow alloc]
-        initWithContentRect:NSMakeRect(0, 0, 360, 220)
+        initWithContentRect:NSMakeRect(0, 0, 420, 520)
                   styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable)
                     backing:NSBackingStoreBuffered
                       defer:NO];
@@ -285,36 +380,76 @@ static void RegisterAppWithLaunchServices(void) {
     root.translatesAutoresizingMaskIntoConstraints = NO;
     self.window.contentView = root;
 
-    NSTextField *title = [NSTextField labelWithString:
-        [NSString stringWithUTF8String:"返回上一级目录"]];
-    title.font = [NSFont boldSystemFontOfSize:16];
-    title.translatesAutoresizingMaskIntoConstraints = NO;
+    NSImageView *icon = [[NSImageView alloc] initWithFrame:NSZeroRect];
+    icon.image = [NSApp applicationIconImage];
+    icon.imageScaling = NSImageScaleProportionallyUpOrDown;
+    icon.translatesAutoresizingMaskIntoConstraints = NO;
+    [icon.widthAnchor constraintEqualToConstant:48].active = YES;
+    [icon.heightAnchor constraintEqualToConstant:48].active = YES;
 
-    NSTextField *usage = [NSTextField labelWithString:
+    NSTextField *title = Label([NSString stringWithUTF8String:FGU_APP_NAME],
+                               [NSFont boldSystemFontOfSize:18], [NSColor labelColor]);
+    NSTextField *version = Label([NSString stringWithFormat:@"版本 %@",
+                                  FGU_CurrentVersion()],
+                                 [NSFont systemFontOfSize:12], [NSColor secondaryLabelColor]);
+    NSTextField *tagline = Label(
+        [NSString stringWithUTF8String:"在访达当前窗口返回上一级目录"],
+        [NSFont systemFontOfSize:12], [NSColor secondaryLabelColor]);
+
+    NSTextField *usage = Label(
         [NSString stringWithUTF8String:
-            "访达中选中任意项目 -> 右键 -> 服务 -> 返回上一级\n"
-            "快捷键 Control+Command+上箭头"]];
-    usage.font = [NSFont systemFontOfSize:12];
-    usage.textColor = [NSColor secondaryLabelColor];
-    usage.lineBreakMode = NSLineBreakByWordWrapping;
-    usage.maximumNumberOfLines = 0;
-    usage.translatesAutoresizingMaskIntoConstraints = NO;
+            "用法：选中任意项目 -> 右键 -> 服务 -> 返回上一级\n"
+            "快捷键：Control+Command+上箭头"],
+        [NSFont systemFontOfSize:12], [NSColor labelColor]);
 
-    self.statusLabel = [NSTextField labelWithString:@""];
-    self.statusLabel.font = [NSFont systemFontOfSize:12];
-    self.statusLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    self.statusLabel = Label(@"", [NSFont systemFontOfSize:12], [NSColor labelColor]);
 
     NSButton *authorize = [NSButton buttonWithTitle:@"允许控制访达"
-                                             target:self
-                                             action:@selector(requestAccess:)];
+                                             target:self action:@selector(requestAccess:)];
     authorize.bezelStyle = NSBezelStyleRounded;
     authorize.translatesAutoresizingMaskIntoConstraints = NO;
 
     NSButton *tryButton = [NSButton buttonWithTitle:@"试用一次"
-                                              target:self
-                                              action:@selector(tryOnce:)];
+                                             target:self action:@selector(tryOnce:)];
     tryButton.bezelStyle = NSBezelStyleRounded;
     tryButton.translatesAutoresizingMaskIntoConstraints = NO;
+
+    NSBox *sep1 = Separator();
+    NSBox *sep2 = Separator();
+
+    self.autoCheckButton = [NSButton checkboxWithTitle:@"自动检查更新（每天一次）"
+                                              target:self
+                                              action:@selector(autoCheckChanged:)];
+    self.autoCheckButton.translatesAutoresizingMaskIntoConstraints = NO;
+    self.autoCheckButton.state = FGU_AutoCheckUpdatesEnabled() ? NSControlStateValueOn
+                                                               : NSControlStateValueOff;
+
+    NSButton *checkUpdate = [NSButton buttonWithTitle:@"检查更新"
+                                               target:self
+                                               action:@selector(checkUpdates:)];
+    checkUpdate.bezelStyle = NSBezelStyleRounded;
+    checkUpdate.translatesAutoresizingMaskIntoConstraints = NO;
+
+    self.updateStatusLabel = Label(@"", [NSFont systemFontOfSize:11], [NSColor secondaryLabelColor]);
+
+    NSTextField *about = Label(
+        [NSString stringWithUTF8String:
+            "finder-go-up 是一款 macOS 轻量工具。\n"
+            "开源协议：MIT\n"
+            "仓库：github.com/imboni/finder-go-up"],
+        [NSFont systemFontOfSize:11], [NSColor secondaryLabelColor]);
+
+    NSButton *githubButton = [NSButton buttonWithTitle:@"GitHub 主页"
+                                                target:self
+                                                action:@selector(openGitHub:)];
+    githubButton.bezelStyle = NSBezelStyleRounded;
+    githubButton.translatesAutoresizingMaskIntoConstraints = NO;
+
+    NSButton *releasesButton = [NSButton buttonWithTitle:@"更新日志"
+                                                  target:self
+                                                  action:@selector(openReleases:)];
+    releasesButton.bezelStyle = NSBezelStyleRounded;
+    releasesButton.translatesAutoresizingMaskIntoConstraints = NO;
 
     NSButton *done = [NSButton buttonWithTitle:@"完成"
                                         target:self
@@ -323,30 +458,65 @@ static void RegisterAppWithLaunchServices(void) {
     done.translatesAutoresizingMaskIntoConstraints = NO;
     done.keyEquivalent = @"\r";
 
-    for (NSView *v in @[ title, usage, self.statusLabel, authorize, tryButton, done ]) {
+    for (NSView *v in @[
+        icon, title, version, tagline, usage, self.statusLabel, authorize, tryButton,
+        sep1, self.autoCheckButton, checkUpdate, self.updateStatusLabel, sep2, about,
+        githubButton, releasesButton, done
+    ]) {
         [root addSubview:v];
     }
 
     [NSLayoutConstraint activateConstraints:@[
-        [title.topAnchor constraintEqualToAnchor:root.topAnchor constant:pad],
-        [title.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
-        [title.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
+        [icon.topAnchor constraintEqualToAnchor:root.topAnchor constant:pad],
+        [icon.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
+        [title.leadingAnchor constraintEqualToAnchor:icon.trailingAnchor constant:12],
+        [title.topAnchor constraintEqualToAnchor:icon.topAnchor constant:2],
+        [version.leadingAnchor constraintEqualToAnchor:title.leadingAnchor],
+        [version.topAnchor constraintEqualToAnchor:title.bottomAnchor constant:2],
+        [tagline.leadingAnchor constraintEqualToAnchor:title.leadingAnchor],
+        [tagline.topAnchor constraintEqualToAnchor:version.bottomAnchor constant:4],
+        [tagline.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
 
-        [usage.topAnchor constraintEqualToAnchor:title.bottomAnchor constant:12],
+        [usage.topAnchor constraintEqualToAnchor:icon.bottomAnchor constant:16],
         [usage.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
         [usage.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
 
-        [self.statusLabel.topAnchor constraintEqualToAnchor:usage.bottomAnchor constant:16],
+        [self.statusLabel.topAnchor constraintEqualToAnchor:usage.bottomAnchor constant:10],
         [self.statusLabel.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
         [self.statusLabel.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
 
-        [authorize.topAnchor constraintEqualToAnchor:self.statusLabel.bottomAnchor constant:12],
+        [authorize.topAnchor constraintEqualToAnchor:self.statusLabel.bottomAnchor constant:10],
         [authorize.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
-
         [tryButton.centerYAnchor constraintEqualToAnchor:authorize.centerYAnchor],
         [tryButton.leadingAnchor constraintEqualToAnchor:authorize.trailingAnchor constant:8],
 
-        [done.topAnchor constraintEqualToAnchor:authorize.bottomAnchor constant:12],
+        [sep1.topAnchor constraintEqualToAnchor:authorize.bottomAnchor constant:14],
+        [sep1.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
+        [sep1.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
+
+        [self.autoCheckButton.topAnchor constraintEqualToAnchor:sep1.bottomAnchor constant:14],
+        [self.autoCheckButton.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad - 4],
+        [checkUpdate.centerYAnchor constraintEqualToAnchor:self.autoCheckButton.centerYAnchor],
+        [checkUpdate.leadingAnchor constraintEqualToAnchor:self.autoCheckButton.trailingAnchor constant:12],
+
+        [self.updateStatusLabel.topAnchor constraintEqualToAnchor:self.autoCheckButton.bottomAnchor constant:6],
+        [self.updateStatusLabel.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
+        [self.updateStatusLabel.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
+
+        [sep2.topAnchor constraintEqualToAnchor:self.updateStatusLabel.bottomAnchor constant:12],
+        [sep2.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
+        [sep2.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
+
+        [about.topAnchor constraintEqualToAnchor:sep2.bottomAnchor constant:12],
+        [about.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
+        [about.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
+
+        [githubButton.topAnchor constraintEqualToAnchor:about.bottomAnchor constant:10],
+        [githubButton.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
+        [releasesButton.centerYAnchor constraintEqualToAnchor:githubButton.centerYAnchor],
+        [releasesButton.leadingAnchor constraintEqualToAnchor:githubButton.trailingAnchor constant:8],
+
+        [done.topAnchor constraintEqualToAnchor:githubButton.bottomAnchor constant:14],
         [done.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
         [done.bottomAnchor constraintEqualToAnchor:root.bottomAnchor constant:-pad],
     ]];
@@ -379,8 +549,7 @@ static void RegisterAppWithLaunchServices(void) {
 }
 
 - (void)enableBackgroundAgent {
-    NSString *script = [[NSBundle mainBundle] pathForResource:@"register-background-agent"
-                                                       ofType:@"sh"];
+    NSString *script = [[NSBundle mainBundle] pathForResource:@"register-background-agent" ofType:@"sh"];
     if (!script) {
         return;
     }

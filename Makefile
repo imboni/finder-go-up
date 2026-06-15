@@ -1,7 +1,7 @@
 BUILD_DIR := build
 PREFIX ?= $(HOME)/.local
 APP_DIR ?= $(HOME)/Applications
-VERSION := 0.0.2
+VERSION := 0.0.3
 
 CLIENT := $(BUILD_DIR)/finder-go-up-client
 APP_BIN := $(BUILD_DIR)/finder-go-up
@@ -20,8 +20,8 @@ $(BUILD_DIR):
 $(CLIENT): src/client.m src/navigate.m src/common.h src/navigate.h | $(BUILD_DIR)
 	clang $(CFLAGS) -o $@ src/client.m src/navigate.m
 
-$(APP_BIN): src/app.m src/navigate.m src/common.h src/navigate.h | $(BUILD_DIR)
-	clang $(APP_CFLAGS) -o $@ src/app.m src/navigate.m
+$(APP_BIN): src/app.m src/navigate.m src/updater.m src/common.h src/navigate.h src/updater.h | $(BUILD_DIR)
+	clang $(APP_CFLAGS) -o $@ src/app.m src/navigate.m src/updater.m
 
 app: $(APP_BIN) resources/AppIcon.icns
 	mkdir -p "$(APP)/Contents/MacOS" "$(APP)/Contents/Resources"
