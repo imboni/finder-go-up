@@ -98,11 +98,53 @@ static NSTextField *Label(NSString *text, NSFont *font, NSColor *color) {
     return field;
 }
 
-static NSBox *Separator(void) {
-    NSBox *box = [[NSBox alloc] initWithFrame:NSZeroRect];
-    box.boxType = NSBoxSeparator;
-    box.translatesAutoresizingMaskIntoConstraints = NO;
-    return box;
+static NSView *CardView(void) {
+    NSView *card = [[NSView alloc] initWithFrame:NSZeroRect];
+    card.wantsLayer = YES;
+    card.layer.cornerRadius = 10;
+    card.layer.borderWidth = 1;
+    if (@available(macOS 10.14, *)) {
+        card.layer.backgroundColor = [[NSColor controlBackgroundColor] CGColor];
+        card.layer.borderColor = [[NSColor separatorColor] CGColor];
+    }
+    card.translatesAutoresizingMaskIntoConstraints = NO;
+    return card;
+}
+
+static NSTextField *SectionHeading(NSString *text) {
+    return Label(text, [NSFont systemFontOfSize:11 weight:NSFontWeightSemibold],
+                 [NSColor secondaryLabelColor]);
+}
+
+static NSButton *PrimaryButton(NSString *title, id target, SEL action) {
+    NSButton *button = [NSButton buttonWithTitle:title target:target action:action];
+    button.bezelStyle = NSBezelStyleRounded;
+    button.translatesAutoresizingMaskIntoConstraints = NO;
+    button.bezelColor = [NSColor controlAccentColor];
+    button.attributedTitle = [[NSAttributedString alloc]
+        initWithString:title attributes:@{
+            NSFontAttributeName : [NSFont systemFontOfSize:13 weight:NSFontWeightSemibold],
+            NSForegroundColorAttributeName : [NSColor whiteColor],
+        }];
+    return button;
+}
+
+static NSButton *SecondaryButton(NSString *title, id target, SEL action) {
+    NSButton *button = [NSButton buttonWithTitle:title target:target action:action];
+    button.bezelStyle = NSBezelStyleRounded;
+    button.translatesAutoresizingMaskIntoConstraints = NO;
+    return button;
+}
+
+static void FillCard(NSView *card, NSView *content, CGFloat inset) {
+    content.translatesAutoresizingMaskIntoConstraints = NO;
+    [card addSubview:content];
+    [NSLayoutConstraint activateConstraints:@[
+        [content.topAnchor constraintEqualToAnchor:card.topAnchor constant:inset],
+        [content.leadingAnchor constraintEqualToAnchor:card.leadingAnchor constant:inset],
+        [content.trailingAnchor constraintEqualToAnchor:card.trailingAnchor constant:-inset],
+        [content.bottomAnchor constraintEqualToAnchor:card.bottomAnchor constant:-inset],
+    ]];
 }
 
 @interface AppDelegate : NSObject <NSApplicationDelegate>
@@ -367,9 +409,11 @@ static void RegisterAppWithLaunchServices(void) {
         return;
     }
 
-    const CGFloat pad = 20;
+    const CGFloat outer = 24;
+    const CGFloat cardInset = 16;
+
     self.window = [[NSWindow alloc]
-        initWithContentRect:NSMakeRect(0, 0, 420, 520)
+        initWithContentRect:NSMakeRect(0, 0, 400, 560)
                   styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable)
                     backing:NSBackingStoreBuffered
                       defer:NO];
@@ -378,147 +422,146 @@ static void RegisterAppWithLaunchServices(void) {
 
     NSView *root = [[NSView alloc] initWithFrame:NSZeroRect];
     root.translatesAutoresizingMaskIntoConstraints = NO;
+    if (@available(macOS 10.14, *)) {
+        root.wantsLayer = YES;
+        root.layer.backgroundColor = [[NSColor windowBackgroundColor] CGColor];
+    }
     self.window.contentView = root;
 
     NSImageView *icon = [[NSImageView alloc] initWithFrame:NSZeroRect];
     icon.image = [NSApp applicationIconImage];
     icon.imageScaling = NSImageScaleProportionallyUpOrDown;
     icon.translatesAutoresizingMaskIntoConstraints = NO;
-    [icon.widthAnchor constraintEqualToConstant:48].active = YES;
-    [icon.heightAnchor constraintEqualToConstant:48].active = YES;
+    [icon.widthAnchor constraintEqualToConstant:64].active = YES;
+    [icon.heightAnchor constraintEqualToConstant:64].active = YES;
 
     NSTextField *title = Label([NSString stringWithUTF8String:FGU_APP_NAME],
-                               [NSFont boldSystemFontOfSize:18], [NSColor labelColor]);
-    NSTextField *version = Label([NSString stringWithFormat:@"版本 %@",
-                                  FGU_CurrentVersion()],
-                                 [NSFont systemFontOfSize:12], [NSColor secondaryLabelColor]);
-    NSTextField *tagline = Label(
-        [NSString stringWithUTF8String:"在访达当前窗口返回上一级目录"],
-        [NSFont systemFontOfSize:12], [NSColor secondaryLabelColor]);
+                               [NSFont boldSystemFontOfSize:20], [NSColor labelColor]);
+    title.alignment = NSTextAlignmentCenter;
 
+    NSTextField *subtitle = Label(
+        [NSString stringWithFormat:@"版本 %@  ·  访达返回上一级", FGU_CurrentVersion()],
+        [NSFont systemFontOfSize:12], [NSColor secondaryLabelColor]);
+    subtitle.alignment = NSTextAlignmentCenter;
+
+    NSTextField *usageHeading = SectionHeading(@"使用");
+    NSView *usageCard = CardView();
     NSTextField *usage = Label(
         [NSString stringWithUTF8String:
-            "用法：选中任意项目 -> 右键 -> 服务 -> 返回上一级\n"
-            "快捷键：Control+Command+上箭头"],
-        [NSFont systemFontOfSize:12], [NSColor labelColor]);
+            "选中任意项目，右键「服务」→「返回上一级」\n"
+            "快捷键：⌃⌘↑"],
+        [NSFont systemFontOfSize:13], [NSColor labelColor]);
+    self.statusLabel = Label(@"", [NSFont systemFontOfSize:12 weight:NSFontWeightMedium],
+                              [NSColor labelColor]);
+    NSButton *authorize = SecondaryButton(@"允许控制访达", self, @selector(requestAccess:));
+    NSButton *tryButton = SecondaryButton(@"试用一次", self, @selector(tryOnce:));
+    NSStackView *usageActions = [NSStackView stackViewWithViews:@[ authorize, tryButton ]];
+    usageActions.orientation = NSUserInterfaceLayoutOrientationHorizontal;
+    usageActions.spacing = 10;
+    usageActions.alignment = NSLayoutAttributeCenterY;
+    usageActions.distribution = NSStackViewDistributionFillEqually;
+    usageActions.translatesAutoresizingMaskIntoConstraints = NO;
 
-    self.statusLabel = Label(@"", [NSFont systemFontOfSize:12], [NSColor labelColor]);
+    NSStackView *usageContent = [NSStackView stackViewWithViews:@[ usage, self.statusLabel, usageActions ]];
+    usageContent.orientation = NSUserInterfaceLayoutOrientationVertical;
+    usageContent.spacing = 12;
+    usageContent.alignment = NSLayoutAttributeLeading;
+    usageContent.translatesAutoresizingMaskIntoConstraints = NO;
+    FillCard(usageCard, usageContent, cardInset);
 
-    NSButton *authorize = [NSButton buttonWithTitle:@"允许控制访达"
-                                             target:self action:@selector(requestAccess:)];
-    authorize.bezelStyle = NSBezelStyleRounded;
-    authorize.translatesAutoresizingMaskIntoConstraints = NO;
-
-    NSButton *tryButton = [NSButton buttonWithTitle:@"试用一次"
-                                             target:self action:@selector(tryOnce:)];
-    tryButton.bezelStyle = NSBezelStyleRounded;
-    tryButton.translatesAutoresizingMaskIntoConstraints = NO;
-
-    NSBox *sep1 = Separator();
-    NSBox *sep2 = Separator();
-
+    NSTextField *updateHeading = SectionHeading(@"更新");
+    NSView *updateCard = CardView();
     self.autoCheckButton = [NSButton checkboxWithTitle:@"自动检查更新（每天一次）"
                                               target:self
                                               action:@selector(autoCheckChanged:)];
     self.autoCheckButton.translatesAutoresizingMaskIntoConstraints = NO;
     self.autoCheckButton.state = FGU_AutoCheckUpdatesEnabled() ? NSControlStateValueOn
                                                                : NSControlStateValueOff;
+    NSButton *checkUpdate = SecondaryButton(@"检查更新", self, @selector(checkUpdates:));
+    self.updateStatusLabel = Label(@"", [NSFont systemFontOfSize:11], [NSColor tertiaryLabelColor]);
 
-    NSButton *checkUpdate = [NSButton buttonWithTitle:@"检查更新"
-                                               target:self
-                                               action:@selector(checkUpdates:)];
-    checkUpdate.bezelStyle = NSBezelStyleRounded;
-    checkUpdate.translatesAutoresizingMaskIntoConstraints = NO;
+    NSStackView *updateContent = [NSStackView stackViewWithViews:@[
+        self.autoCheckButton, checkUpdate, self.updateStatusLabel
+    ]];
+    updateContent.orientation = NSUserInterfaceLayoutOrientationVertical;
+    updateContent.spacing = 10;
+    updateContent.alignment = NSLayoutAttributeLeading;
+    updateContent.translatesAutoresizingMaskIntoConstraints = NO;
+    FillCard(updateCard, updateContent, cardInset);
 
-    self.updateStatusLabel = Label(@"", [NSFont systemFontOfSize:11], [NSColor secondaryLabelColor]);
-
+    NSTextField *aboutHeading = SectionHeading(@"关于");
+    NSView *aboutCard = CardView();
     NSTextField *about = Label(
         [NSString stringWithUTF8String:
-            "finder-go-up 是一款 macOS 轻量工具。\n"
-            "开源协议：MIT\n"
-            "仓库：github.com/imboni/finder-go-up"],
-        [NSFont systemFontOfSize:11], [NSColor secondaryLabelColor]);
+            "macOS 轻量工具，MIT 开源\n"
+            "github.com/imboni/finder-go-up"],
+        [NSFont systemFontOfSize:12], [NSColor secondaryLabelColor]);
+    NSButton *githubButton = SecondaryButton(@"GitHub", self, @selector(openGitHub:));
+    NSButton *releasesButton = SecondaryButton(@"更新日志", self, @selector(openReleases:));
+    NSStackView *aboutLinks = [NSStackView stackViewWithViews:@[ githubButton, releasesButton ]];
+    aboutLinks.orientation = NSUserInterfaceLayoutOrientationHorizontal;
+    aboutLinks.spacing = 10;
+    aboutLinks.translatesAutoresizingMaskIntoConstraints = NO;
 
-    NSButton *githubButton = [NSButton buttonWithTitle:@"GitHub 主页"
-                                                target:self
-                                                action:@selector(openGitHub:)];
-    githubButton.bezelStyle = NSBezelStyleRounded;
-    githubButton.translatesAutoresizingMaskIntoConstraints = NO;
+    NSStackView *aboutContent = [NSStackView stackViewWithViews:@[ about, aboutLinks ]];
+    aboutContent.orientation = NSUserInterfaceLayoutOrientationVertical;
+    aboutContent.spacing = 12;
+    aboutContent.alignment = NSLayoutAttributeLeading;
+    aboutContent.translatesAutoresizingMaskIntoConstraints = NO;
+    FillCard(aboutCard, aboutContent, cardInset);
 
-    NSButton *releasesButton = [NSButton buttonWithTitle:@"更新日志"
-                                                  target:self
-                                                  action:@selector(openReleases:)];
-    releasesButton.bezelStyle = NSBezelStyleRounded;
-    releasesButton.translatesAutoresizingMaskIntoConstraints = NO;
-
-    NSButton *done = [NSButton buttonWithTitle:@"完成"
-                                        target:self
-                                        action:@selector(finish:)];
-    done.bezelStyle = NSBezelStyleRounded;
-    done.translatesAutoresizingMaskIntoConstraints = NO;
+    NSButton *done = PrimaryButton(@"完成", self, @selector(finish:));
     done.keyEquivalent = @"\r";
+    [done.widthAnchor constraintGreaterThanOrEqualToConstant:160].active = YES;
+    [done.heightAnchor constraintEqualToConstant:32].active = YES;
 
     for (NSView *v in @[
-        icon, title, version, tagline, usage, self.statusLabel, authorize, tryButton,
-        sep1, self.autoCheckButton, checkUpdate, self.updateStatusLabel, sep2, about,
-        githubButton, releasesButton, done
+        icon, title, subtitle, usageHeading, usageCard, updateHeading, updateCard,
+        aboutHeading, aboutCard, done
     ]) {
         [root addSubview:v];
     }
 
     [NSLayoutConstraint activateConstraints:@[
-        [icon.topAnchor constraintEqualToAnchor:root.topAnchor constant:pad],
-        [icon.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
-        [title.leadingAnchor constraintEqualToAnchor:icon.trailingAnchor constant:12],
-        [title.topAnchor constraintEqualToAnchor:icon.topAnchor constant:2],
-        [version.leadingAnchor constraintEqualToAnchor:title.leadingAnchor],
-        [version.topAnchor constraintEqualToAnchor:title.bottomAnchor constant:2],
-        [tagline.leadingAnchor constraintEqualToAnchor:title.leadingAnchor],
-        [tagline.topAnchor constraintEqualToAnchor:version.bottomAnchor constant:4],
-        [tagline.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
+        [icon.topAnchor constraintEqualToAnchor:root.topAnchor constant:outer],
+        [icon.centerXAnchor constraintEqualToAnchor:root.centerXAnchor],
 
-        [usage.topAnchor constraintEqualToAnchor:icon.bottomAnchor constant:16],
-        [usage.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
-        [usage.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
+        [title.topAnchor constraintEqualToAnchor:icon.bottomAnchor constant:12],
+        [title.centerXAnchor constraintEqualToAnchor:root.centerXAnchor],
+        [title.leadingAnchor constraintGreaterThanOrEqualToAnchor:root.leadingAnchor constant:outer],
+        [title.trailingAnchor constraintLessThanOrEqualToAnchor:root.trailingAnchor constant:-outer],
 
-        [self.statusLabel.topAnchor constraintEqualToAnchor:usage.bottomAnchor constant:10],
-        [self.statusLabel.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
-        [self.statusLabel.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
+        [subtitle.topAnchor constraintEqualToAnchor:title.bottomAnchor constant:4],
+        [subtitle.centerXAnchor constraintEqualToAnchor:root.centerXAnchor],
+        [subtitle.leadingAnchor constraintGreaterThanOrEqualToAnchor:root.leadingAnchor constant:outer],
+        [subtitle.trailingAnchor constraintLessThanOrEqualToAnchor:root.trailingAnchor constant:-outer],
 
-        [authorize.topAnchor constraintEqualToAnchor:self.statusLabel.bottomAnchor constant:10],
-        [authorize.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
-        [tryButton.centerYAnchor constraintEqualToAnchor:authorize.centerYAnchor],
-        [tryButton.leadingAnchor constraintEqualToAnchor:authorize.trailingAnchor constant:8],
+        [usageHeading.topAnchor constraintEqualToAnchor:subtitle.bottomAnchor constant:20],
+        [usageHeading.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:outer + 2],
 
-        [sep1.topAnchor constraintEqualToAnchor:authorize.bottomAnchor constant:14],
-        [sep1.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
-        [sep1.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
+        [usageCard.topAnchor constraintEqualToAnchor:usageHeading.bottomAnchor constant:6],
+        [usageCard.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:outer],
+        [usageCard.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-outer],
 
-        [self.autoCheckButton.topAnchor constraintEqualToAnchor:sep1.bottomAnchor constant:14],
-        [self.autoCheckButton.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad - 4],
-        [checkUpdate.centerYAnchor constraintEqualToAnchor:self.autoCheckButton.centerYAnchor],
-        [checkUpdate.leadingAnchor constraintEqualToAnchor:self.autoCheckButton.trailingAnchor constant:12],
+        [updateHeading.topAnchor constraintEqualToAnchor:usageCard.bottomAnchor constant:16],
+        [updateHeading.leadingAnchor constraintEqualToAnchor:usageHeading.leadingAnchor],
 
-        [self.updateStatusLabel.topAnchor constraintEqualToAnchor:self.autoCheckButton.bottomAnchor constant:6],
-        [self.updateStatusLabel.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
-        [self.updateStatusLabel.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
+        [updateCard.topAnchor constraintEqualToAnchor:updateHeading.bottomAnchor constant:6],
+        [updateCard.leadingAnchor constraintEqualToAnchor:usageCard.leadingAnchor],
+        [updateCard.trailingAnchor constraintEqualToAnchor:usageCard.trailingAnchor],
 
-        [sep2.topAnchor constraintEqualToAnchor:self.updateStatusLabel.bottomAnchor constant:12],
-        [sep2.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
-        [sep2.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
+        [aboutHeading.topAnchor constraintEqualToAnchor:updateCard.bottomAnchor constant:16],
+        [aboutHeading.leadingAnchor constraintEqualToAnchor:usageHeading.leadingAnchor],
 
-        [about.topAnchor constraintEqualToAnchor:sep2.bottomAnchor constant:12],
-        [about.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
-        [about.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
+        [aboutCard.topAnchor constraintEqualToAnchor:aboutHeading.bottomAnchor constant:6],
+        [aboutCard.leadingAnchor constraintEqualToAnchor:usageCard.leadingAnchor],
+        [aboutCard.trailingAnchor constraintEqualToAnchor:usageCard.trailingAnchor],
 
-        [githubButton.topAnchor constraintEqualToAnchor:about.bottomAnchor constant:10],
-        [githubButton.leadingAnchor constraintEqualToAnchor:root.leadingAnchor constant:pad],
-        [releasesButton.centerYAnchor constraintEqualToAnchor:githubButton.centerYAnchor],
-        [releasesButton.leadingAnchor constraintEqualToAnchor:githubButton.trailingAnchor constant:8],
+        [done.topAnchor constraintEqualToAnchor:aboutCard.bottomAnchor constant:20],
+        [done.centerXAnchor constraintEqualToAnchor:root.centerXAnchor],
+        [done.bottomAnchor constraintEqualToAnchor:root.bottomAnchor constant:-outer],
 
-        [done.topAnchor constraintEqualToAnchor:githubButton.bottomAnchor constant:14],
-        [done.trailingAnchor constraintEqualToAnchor:root.trailingAnchor constant:-pad],
-        [done.bottomAnchor constraintEqualToAnchor:root.bottomAnchor constant:-pad],
+        [usageActions.widthAnchor constraintEqualToAnchor:usageContent.widthAnchor],
     ]];
 
     [self.window center];
