@@ -5,12 +5,12 @@ VERSION := 0.0.3
 
 CLIENT := $(BUILD_DIR)/finder-go-up-client
 APP_BIN := $(BUILD_DIR)/finder-go-up
-APP := $(BUILD_DIR)/finder-go-up.app
+APP := $(BUILD_DIR)/Finder-go-up.app
 
 CFLAGS := -framework Foundation -O2 -Wall -Wextra
 APP_CFLAGS := -framework Cocoa -framework Foundation -O2 -Wall -Wextra
 
-.PHONY: all clean install uninstall package
+.PHONY: all clean install uninstall package app
 
 all: $(CLIENT) $(APP_BIN) app
 
@@ -20,10 +20,10 @@ $(BUILD_DIR):
 $(CLIENT): src/client.m src/navigate.m src/common.h src/navigate.h | $(BUILD_DIR)
 	clang $(CFLAGS) -o $@ src/client.m src/navigate.m
 
-$(APP_BIN): src/app.m src/navigate.m src/updater.m src/common.h src/navigate.h src/updater.h | $(BUILD_DIR)
-	clang $(APP_CFLAGS) -o $@ src/app.m src/navigate.m src/updater.m
+$(APP_BIN): src/app.m src/navigate.m src/updater.m src/ipc.m src/common.h src/navigate.h src/updater.h src/ipc.h | $(BUILD_DIR)
+	clang $(APP_CFLAGS) -o $@ src/app.m src/navigate.m src/updater.m src/ipc.m
 
-app: $(APP_BIN) resources/AppIcon.icns
+app: $(APP_BIN) resources/AppIcon.icns $(CLIENT)
 	mkdir -p "$(APP)/Contents/MacOS" "$(APP)/Contents/Resources"
 	sed 's/@@VERSION@@/$(VERSION)/g' resources/Info.plist > "$(APP)/Contents/Info.plist"
 	cp resources/PkgInfo "$(APP)/Contents/PkgInfo"

@@ -6,28 +6,40 @@ mkdir -p "$(dirname "$OUT")"
 export OUT
 
 python3 <<'PY'
-import os, struct, zlib, pathlib
+import os, struct, zlib, pathlib, math
 
-w, h = 640, 360
-pixels = []
-for y in range(h):
-    for x in range(w):
-        t = y / max(h - 1, 1)
-        r = int(248 + (255 - 248) * t)
-        g = int(248 + (255 - 248) * t)
-        b = int(250 + (255 - 250) * t)
-        pixels.extend([r, g, b, 255])
+w, h = 660, 360
+pixels = bytearray(w * h * 4)
 
 def set_px(x, y, r, g, b, a=255):
     if 0 <= x < w and 0 <= y < h:
         i = (y * w + x) * 4
         pixels[i:i+4] = [r, g, b, a]
 
-gray = (150, 150, 155)
+for y in range(h):
+    for x in range(w):
+        t = y / max(h - 1, 1)
+        u = x / max(w - 1, 1)
+        r = min(255, int(246 + (255 - 246) * t + 4 * math.sin(u * math.pi)))
+        g = min(255, int(247 + (255 - 247) * t + 3 * math.sin(u * math.pi)))
+        b = min(255, int(249 + (255 - 249) * t + 2 * math.sin(u * math.pi)))
+        set_px(x, y, r, g, b)
+
+# Soft drop zones
+for cx, cy, rw, rh in [(150, 190, 96, 96), (470, 190, 96, 96)]:
+    for y in range(cy - rh // 2, cy + rh // 2):
+        for x in range(cx - rw // 2, cx + rw // 2):
+            dx = abs(x - cx) / (rw / 2)
+            dy = abs(y - cy) / (rh / 2)
+            if dx * dx + dy * dy <= 1.0:
+                set_px(x, y, 255, 255, 255, 28)
+
+# Arrow between icons
+gray = (140, 140, 148)
 for x in range(300, 340):
     for dy in range(-2, 3):
         set_px(x, 228 + dy, *gray)
-for t in range(10):
+for t in range(12):
     set_px(340 + t, 228 - t // 2, *gray)
     set_px(340 + t, 228 + t // 2, *gray)
 

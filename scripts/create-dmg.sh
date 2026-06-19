@@ -1,22 +1,71 @@
 #!/usr/bin/env bash
-# Create a simple drag-to-Applications DMG (single-step, no mount/convert).
+# Create a styled drag-to-Applications DMG with background and large icons.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION="${VERSION:-0.0.3}"
-APP="$ROOT/build/finder-go-up.app"
+APP="$ROOT/build/Finder-go-up.app"
 DMG="$ROOT/dist/finder-go-up-${VERSION}.dmg"
 STAGE="$ROOT/build/dmg-stage"
-VOL_NAME="finder-go-up"
+VOL_NAME="Finder-go-up"
+APP_ITEM="Finder-go-up.app"
+TMP_DMG="$ROOT/build/finder-go-up-temp.dmg"
 
 [[ -d "$APP" ]] || { echo "Build app first: make all" >&2; exit 1; }
 
 mkdir -p "$ROOT/dist"
-rm -rf "$STAGE" "$DMG"
-mkdir -p "$STAGE"
+rm -rf "$STAGE" "$TMP_DMG" "$DMG"
+mkdir -p "$STAGE/.background"
 cp -R "$APP" "$STAGE/"
 ln -sf /Applications "$STAGE/Applications"
+cp "$ROOT/resources/AppIcon.icns" "$STAGE/.VolumeIcon.icns"
+if command -v SetFile >/dev/null 2>&1; then
+  SetFile -a C "$STAGE" || true
+fi
 
-hdiutil create -volname "$VOL_NAME" -srcfolder "$STAGE" -ov -format UDZO -imagekey zlib-level=9 "$DMG"
+bash "$ROOT/scripts/generate-dmg-background.sh" "$STAGE/.background/background.png"
+
+layout_dmg() {
+  /usr/bin/osascript <<APPLESCRIPT
+tell application "Finder"
+  tell disk "$VOL_NAME"
+    open
+    set current view of container window to icon view
+    set toolbar visible of container window to false
+    set statusbar visible of container window to false
+    set the bounds of container window to {200, 120, 860, 480}
+    set theViewOptions to the icon view options of container window
+    set arrangement of theViewOptions to not arranged
+    set icon size of theViewOptions to 128
+    set background picture of theViewOptions to file ".background:background.png"
+    set position of item "$APP_ITEM" of container window to {150, 170}
+    set position of item "Applications" of container window to {470, 170}
+    close
+    open
+    update without registering applications
+    delay 2
+  end tell
+end tell
+APPLESCRIPT
+}
+
+if hdiutil create -size 120m -fs HFS+ -volname "$VOL_NAME" -ov "$TMP_DMG" >/dev/null 2>&1; then
+  MOUNT=$(hdiutil attach "$TMP_DMG" -nobrowse | grep '/Volumes/' | tail -1 | awk '{for(i=1;i<=NF;i++) if($i ~ /^\/Volumes\//) print $i}')
+  cp -R "$STAGE/." "$MOUNT/"
+  chmod -Rf go-w "$MOUNT" 2>/dev/null || true
+  layout_dmg
+  chmod -Rf go-w "$MOUNT" 2>/dev/null || true
+  sync
+  hdiutil detach "$MOUNT" >/dev/null
+  if hdiutil convert "$TMP_DMG" -format UDZO -imagekey zlib-level=9 -o "$DMG" >/dev/null 2>&1; then
+    rm -f "$TMP_DMG"
+  else
+    rm -f "$DMG"
+    hdiutil convert "$TMP_DMG" -format UDBZ -o "$DMG" >/dev/null
+    rm -f "$TMP_DMG"
+  fi
+else
+  hdiutil create -volname "$VOL_NAME" -srcfolder "$STAGE" -ov -format UDZO -imagekey zlib-level=9 "$DMG"
+fi
 
 echo "$DMG"

@@ -1,19 +1,33 @@
 #import <Foundation/Foundation.h>
 #include "navigate.h"
 
+static NSAppleScript *NavigationScript(void) {
+    static NSAppleScript *script;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        script = [[NSAppleScript alloc] initWithSource:
+            @"tell application \"Finder\" to set target of front window to "
+             @"(container of target of front window)"];
+        NSDictionary *error = nil;
+        [script compileAndReturnError:&error];
+        (void)error;
+    });
+    return script;
+}
+
+void FGU_WarmFinderConnection(void) {
+    @autoreleasepool {
+        NSDictionary *error = nil;
+        NSAppleScript *ping = [[NSAppleScript alloc] initWithSource:
+            @"tell application \"Finder\" to return name"];
+        [ping executeAndReturnError:&error];
+        (void)NavigationScript();
+        (void)error;
+    }
+}
+
 static BOOL RunNavigationScript(NSDictionary **errorOut) {
-    NSAppleScript *script = [[NSAppleScript alloc] initWithSource:
-        @"tell application \"Finder\"\n"
-         @"  if (count of windows) is 0 then error \"没有打开的访达窗口\"\n"
-         @"  set here to target of front window\n"
-         @"  try\n"
-         @"    set parentFolder to container of here\n"
-         @"  on error\n"
-         @"    error \"已经在最顶层目录\"\n"
-         @"  end try\n"
-         @"  set target of front window to parentFolder\n"
-         @"end tell"];
-    return [script executeAndReturnError:errorOut] != nil;
+    return [NavigationScript() executeAndReturnError:errorOut] != nil;
 }
 
 BOOL FGU_NavigateUpDirectWithError(NSDictionary **errorOut) {

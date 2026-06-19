@@ -1,39 +1,41 @@
-# finder-go-up
+# Finder-go-up
 
 在访达当前窗口返回上一级目录。
 
 ## 安装
 
-1. 打开 `finder-go-up.dmg`
-2. 将 **finder-go-up** 拖到 **Applications**
-3. 首次打开 App → 点击 **允许控制访达** → **完成**
+1. 从 [Releases](https://github.com/imboni/finder-go-up/releases) 下载 `finder-go-up-0.0.3.dmg`
+2. 将 **Finder-go-up** 拖到 **Applications**
+3. 打开 App 一次；若系统提示，**允许控制「访达」**
 
-App 会在后台保持运行，右键服务即可使用。之后再次打开 App 不会出现界面。
+安装后 App 在后台保持运行（活动监视器中显示为 `finder-go-up`），供服务菜单与快捷键使用。**再次打开 App 不会出界面，直接返回上一级。**
 
 ## 使用
 
+- **打开 App** → 立即返回上一级
 - 选中任意项目 → 右键 → 服务 → **返回上一级**
 - 快捷键 **⌃⌘↑**（若无效，到 **系统设置 → 键盘 → 键盘快捷键 → 服务** 中启用）
 
-## 重新打开设置
+### 超级右键（iRightMouse Pro）
 
-```bash
-open -a ~/Applications/finder-go-up.app --args --show
-```
+1. **iRightMouse Pro → 偏好设置 → 工具箱 → 打开 App**
+2. 选择 **`~/Applications/Finder-go-up.app`**
+3. 名称设为 **返回上一级**，保存后重启 iRightMouse Pro
 
-设置界面包含：授权状态、第三方接入说明、自动检查更新、产品信息与 GitHub 链接。
+详见 [docs/integrations/irightmouse.md](docs/integrations/irightmouse.md)
 
 ## 第三方接入
 
 ```bash
 finder-go-up
 open finder-go-up://go-up
+open ~/Applications/Finder-go-up.app
 ```
 
-CLI（可选）：
+CLI（源码安装后位于 `~/.local/bin/finder-go-up`；亦可手动链接）：
 
 ```bash
-sudo ln -sf ~/Applications/finder-go-up.app/Contents/MacOS/finder-go-up-client /usr/local/bin/finder-go-up
+sudo ln -sf ~/Applications/Finder-go-up.app/Contents/MacOS/finder-go-up-client /usr/local/bin/finder-go-up
 ```
 
 ## 卸载
@@ -42,10 +44,14 @@ sudo ln -sf ~/Applications/finder-go-up.app/Contents/MacOS/finder-go-up-client /
 bash scripts/uninstall.sh
 ```
 
-## 构建
+## 开发
 
 ```bash
-make package   # → dist/finder-go-up-0.0.3.dmg
+make
+bash scripts/install.sh
+make package   # dist/finder-go-up-0.0.3.dmg
 ```
 
-要求 macOS 13+
+## 更新日志
+
+见 [docs/CHANGELOG.md](docs/CHANGELOG.md)

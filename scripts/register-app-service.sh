@@ -2,7 +2,7 @@
 # Register NSServices and configure default shortcut ⌃⌘↑.
 set -euo pipefail
 
-APP_PATH="${1:-$HOME/Applications/finder-go-up.app}"
+APP_PATH="${1:-$HOME/Applications/Finder-go-up.app}"
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -20,4 +20,4 @@ SUPPORT="$HOME/Library/Application Support/finder-go-up"
 mkdir -p "$SUPPORT"
 touch "$SUPPORT/services-registered"
 
-echo "Registered finder-go-up service (no Finder restart needed)."
+echo "Registered Finder-go-up service (no Finder restart needed)."
