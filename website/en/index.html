@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Finder-go-up — Go Up One Level in Finder</title>
+  <meta name="description" content="Finder-go-up is a lightweight macOS utility that navigates the active Finder window up one directory. Launch the app, use ⌃⌘↑, or the Services menu.">
+  <meta name="theme-color" content="#007AFF">
+  <link rel="icon" href="../assets/logo.png" type="image/png">
+  <link rel="alternate" hreflang="zh-Hans" href="https://imboni.github.io/finder-go-up/">
+  <link rel="alternate" hreflang="en" href="https://imboni.github.io/finder-go-up/en/">
+  <link rel="alternate" hreflang="x-default" href="https://imboni.github.io/finder-go-up/en/">
+  <meta property="og:title" content="Finder-go-up — Go Up One Level in Finder">
+  <meta property="og:description" content="No UI, always ready. Launch the app, press a shortcut, or use the Services menu to go up one directory.">
+  <meta property="og:image" content="https://imboni.github.io/finder-go-up/assets/logo.png">
+  <meta property="og:type" content="website">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav container">
+      <a class="nav-brand" href="./">
+        <img src="../assets/logo.png" alt="" width="28" height="28">
+        <span>Finder-go-up</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#usage">Usage</a></li>
+        <li><a href="#integrate">Integrate</a></li>
+        <li><a href="#download">Download</a></li>
+      </ul>
+      <div class="nav-actions">
+        <div class="lang-switch" role="navigation" aria-label="Language">
+          <a href="../">中文</a>
+          <span class="lang-sep" aria-hidden="true">/</span>
+          <span class="lang-active" aria-current="page">EN</span>
+        </div>
+        <a class="btn btn-primary btn-sm nav-cta" href="#download">Free Download</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container hero-inner">
+        <div class="hero-copy">
+          <p class="hero-badge">macOS 13+ · Free &amp; Open Source</p>
+          <h1>Go up one level<br>in Finder, instantly</h1>
+          <p class="hero-desc">
+            No windows, no settings screen. Launch the app, press a shortcut,
+            or use the Services menu — the active Finder window jumps up one directory.
+          </p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="https://github.com/imboni/finder-go-up/releases/latest" target="_blank" rel="noopener">
+              Download DMG
+            </a>
+            <a class="btn btn-ghost" href="https://github.com/imboni/finder-go-up" target="_blank" rel="noopener">
+              View Source
+            </a>
+          </div>
+          <p class="hero-hint">Current version 0.0.3 · MIT License · ~1 MB</p>
+        </div>
+        <div class="hero-visual">
+          <div class="finder-mock">
+            <div class="finder-titlebar">
+              <span class="dot red"></span>
+              <span class="dot yellow"></span>
+              <span class="dot green"></span>
+              <span class="finder-path">Documents › Projects › finder-go-up</span>
+            </div>
+            <div class="finder-body">
+              <aside class="finder-sidebar">
+                <div class="sidebar-item active">Documents</div>
+                <div class="sidebar-item">Downloads</div>
+                <div class="sidebar-item">Desktop</div>
+              </aside>
+              <div class="finder-content">
+                <div class="folder-grid">
+                  <div class="folder-item"><span class="folder-icon"></span>src</div>
+                  <div class="folder-item"><span class="folder-icon"></span>scripts</div>
+                  <div class="folder-item"><span class="folder-icon"></span>docs</div>
+                </div>
+                <div class="action-callout">
+                  <kbd>⌃</kbd><kbd>⌘</kbd><kbd>↑</kbd>
+                  <span>or launch the app again</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <img class="hero-logo" src="../assets/logo.png" alt="Finder-go-up icon" width="96" height="96">
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="section">
+      <div class="container">
+        <header class="section-header">
+          <h2>Lightweight, always ready</h2>
+          <p>A background utility that makes “go up one level” muscle memory.</p>
+        </header>
+        <div class="feature-grid">
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">⚡</div>
+            <h3>Launch and go</h3>
+            <p>Relaunching the app shows no UI — it immediately navigates up one level. Zero onboarding, zero configuration.</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">⌨️</div>
+            <h3>System shortcut</h3>
+            <p>Default shortcut: <kbd>⌃⌘↑</kbd>. If it doesn’t work, enable it under <strong>System Settings → Keyboard → Keyboard Shortcuts → Services</strong>.</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">🖱</div>
+            <h3>Services menu</h3>
+            <p>Select any item → right-click → Services → <strong>Go Up One Level</strong>. Feels native to Finder.</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">🔗</div>
+            <h3>Multiple entry points</h3>
+            <p>CLI, URL Scheme <code>finder-go-up://go-up</code>, and third-party tools like iRightMouse Pro.</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">🚀</div>
+            <h3>Fast response</h3>
+            <p>Unix socket IPC, precompiled AppleScript, and warmed Finder connections — actions feel nearly instant.</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">🔒</div>
+            <h3>Transparent permissions</h3>
+            <p>Only needs permission to control Finder for navigation. No network requests, no data collection, fully open source.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="usage" class="section section-alt">
+      <div class="container">
+        <header class="section-header">
+          <h2>Get started in three steps</h2>
+          <p>Install once, use anytime.</p>
+        </header>
+        <ol class="steps">
+          <li class="step">
+            <span class="step-num">1</span>
+            <div>
+              <h3>Download and install</h3>
+              <p>Download the DMG from GitHub Releases and drag <strong>Finder-go-up</strong> into your Applications folder.</p>
+            </div>
+          </li>
+          <li class="step">
+            <span class="step-num">2</span>
+            <div>
+              <h3>Grant Finder access</h3>
+              <p>On first launch, allow the app to control Finder when prompted. It then stays running in the background for Services and shortcuts.</p>
+            </div>
+          </li>
+          <li class="step">
+            <span class="step-num">3</span>
+            <div>
+              <h3>Pick your preferred method</h3>
+              <p>Launch the app, press <kbd>⌃⌘↑</kbd>, or use the Services menu — all three do the same thing.</p>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section id="integrate" class="section">
+      <div class="container">
+        <header class="section-header">
+          <h2>Developer &amp; third-party integration</h2>
+          <p>Call it from scripts, automation tools, or context-menu enhancers.</p>
+        </header>
+        <div class="integrate-grid">
+          <div class="code-block">
+            <div class="code-header">Command line</div>
+            <pre><code>finder-go-up</code></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-header">URL Scheme</div>
+            <pre><code>open finder-go-up://go-up</code></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-header">Launch the app</div>
+            <pre><code>open ~/Applications/Finder-go-up.app</code></pre>
+          </div>
+        </div>
+        <p class="integrate-note">After a source install, the CLI lives at <code>~/.local/bin/finder-go-up</code>. You can also symlink it to <code>/usr/local/bin</code>.</p>
+        <details class="integrate-details">
+          <summary>iRightMouse Pro setup</summary>
+          <ol>
+            <li>Open <strong>iRightMouse Pro → Preferences → Toolbox → Open App</strong></li>
+            <li>Select <code>~/Applications/Finder-go-up.app</code></li>
+            <li>Set the name to <strong>Go Up One Level</strong>, save, and restart iRightMouse Pro</li>
+          </ol>
+        </details>
+      </div>
+    </section>
+
+    <section id="download" class="section section-download">
+      <div class="container download-inner">
+        <img src="../assets/logo.png" alt="" width="72" height="72" class="download-logo">
+        <h2>Ready to upgrade Finder navigation?</h2>
+        <p>Requires macOS 13 or later. The installer is about 1 MB, and uninstall is a single command.</p>
+        <a class="btn btn-primary btn-lg" href="https://github.com/imboni/finder-go-up/releases/latest" target="_blank" rel="noopener">
+          Download on GitHub Releases
+        </a>
+        <p class="download-meta">
+          Uninstall: <code>bash scripts/uninstall.sh</code> ·
+          <a href="https://github.com/imboni/finder-go-up/blob/main/docs/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div class="footer-brand">
+        <img src="../assets/logo.png" alt="" width="24" height="24">
+        <span>Finder-go-up</span>
+      </div>
+      <p class="footer-copy">© 2026 SeeData / acode · MIT License</p>
+      <div class="footer-links">
+        <a href="https://github.com/imboni/finder-go-up" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/imboni/finder-go-up/issues" target="_blank" rel="noopener">Report an issue</a>
+        <a href="https://github.com/imboni/finder-go-up/blob/main/README.md" target="_blank" rel="noopener">Docs</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

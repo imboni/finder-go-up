@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Finder-go-up — 访达一键返回上一级</title>
+  <meta name="description" content="Finder-go-up 是 macOS 访达小工具：打开即返回上一级，支持右键服务菜单、快捷键 ⌃⌘↑ 与 CLI / URL Scheme 集成。">
+  <meta name="theme-color" content="#007AFF">
+  <link rel="icon" href="assets/logo.png" type="image/png">
+  <link rel="alternate" hreflang="zh-Hans" href="https://imboni.github.io/finder-go-up/">
+  <link rel="alternate" hreflang="en" href="https://imboni.github.io/finder-go-up/en/">
+  <link rel="alternate" hreflang="x-default" href="https://imboni.github.io/finder-go-up/en/">
+  <meta property="og:title" content="Finder-go-up — 访达一键返回上一级">
+  <meta property="og:description" content="无界面、后台常驻。打开 App、快捷键或右键服务，立刻回到上级目录。">
+  <meta property="og:image" content="https://imboni.github.io/finder-go-up/assets/logo.png">
+  <meta property="og:type" content="website">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav container">
+      <a class="nav-brand" href="./">
+        <img src="assets/logo.png" alt="" width="28" height="28">
+        <span>Finder-go-up</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="#features">功能</a></li>
+        <li><a href="#usage">使用</a></li>
+        <li><a href="#integrate">集成</a></li>
+        <li><a href="#download">下载</a></li>
+      </ul>
+      <div class="nav-actions">
+        <div class="lang-switch" role="navigation" aria-label="语言">
+          <span class="lang-active" aria-current="page">中文</span>
+          <span class="lang-sep" aria-hidden="true">/</span>
+          <a href="en/">EN</a>
+        </div>
+        <a class="btn btn-primary btn-sm nav-cta" href="#download">免费下载</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container hero-inner">
+        <div class="hero-copy">
+          <p class="hero-badge">macOS 13+ · 免费开源</p>
+          <h1>访达里，<br>一键回到上一级</h1>
+          <p class="hero-desc">
+            没有窗口，没有设置页。打开 App、按下快捷键，或通过右键服务菜单，
+            当前访达窗口立刻返回上级目录。
+          </p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="https://github.com/imboni/finder-go-up/releases/latest" target="_blank" rel="noopener">
+              下载 DMG
+            </a>
+            <a class="btn btn-ghost" href="https://github.com/imboni/finder-go-up" target="_blank" rel="noopener">
+              查看源码
+            </a>
+          </div>
+          <p class="hero-hint">当前版本 0.0.3 · MIT 许可证 · 约 1 MB</p>
+        </div>
+        <div class="hero-visual">
+          <div class="finder-mock">
+            <div class="finder-titlebar">
+              <span class="dot red"></span>
+              <span class="dot yellow"></span>
+              <span class="dot green"></span>
+              <span class="finder-path">文稿 › 项目 › finder-go-up</span>
+            </div>
+            <div class="finder-body">
+              <aside class="finder-sidebar">
+                <div class="sidebar-item active">文稿</div>
+                <div class="sidebar-item">下载</div>
+                <div class="sidebar-item">桌面</div>
+              </aside>
+              <div class="finder-content">
+                <div class="folder-grid">
+                  <div class="folder-item"><span class="folder-icon"></span>src</div>
+                  <div class="folder-item"><span class="folder-icon"></span>scripts</div>
+                  <div class="folder-item"><span class="folder-icon"></span>docs</div>
+                </div>
+                <div class="action-callout">
+                  <kbd>⌃</kbd><kbd>⌘</kbd><kbd>↑</kbd>
+                  <span>或再次打开 App</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <img class="hero-logo" src="assets/logo.png" alt="Finder-go-up 图标" width="96" height="96">
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="section">
+      <div class="container">
+        <header class="section-header">
+          <h2>轻量，但随时待命</h2>
+          <p>后台常驻的小工具，把「返回上一级」变成肌肉记忆。</p>
+        </header>
+        <div class="feature-grid">
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">⚡</div>
+            <h3>打开即用</h3>
+            <p>再次打开 App 不会弹出任何界面，直接执行返回上一级。零 onboarding，零配置。</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">⌨️</div>
+            <h3>系统快捷键</h3>
+            <p>默认 <kbd>⌃⌘↑</kbd>。若快捷键无效，请到<strong>系统设置 → 键盘 → 键盘快捷键 → 服务</strong>中启用。</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">🖱</div>
+            <h3>右键服务菜单</h3>
+            <p>选中任意项目 → 右键 → 服务 → <strong>返回上一级</strong>，与访达原生操作习惯一致。</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">🔗</div>
+            <h3>多种调用方式</h3>
+            <p>支持 CLI、URL Scheme <code>finder-go-up://go-up</code>，可接入超级右键等第三方增强工具。</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">🚀</div>
+            <h3>极速响应</h3>
+            <p>Unix Socket 进程间通信，AppleScript 预编译与 Finder 连接预热，操作几乎无感延迟。</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">🔒</div>
+            <h3>权限透明</h3>
+            <p>仅需「控制访达」权限以执行目录导航。无网络请求、无数据收集，源码完全开放。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="usage" class="section section-alt">
+      <div class="container">
+        <header class="section-header">
+          <h2>三步即可上手</h2>
+          <p>安装一次，之后随时可用。</p>
+        </header>
+        <ol class="steps">
+          <li class="step">
+            <span class="step-num">1</span>
+            <div>
+              <h3>下载并安装</h3>
+              <p>从 GitHub Releases 下载 DMG，将 <strong>Finder-go-up</strong> 拖入「应用程序」文件夹。</p>
+            </div>
+          </li>
+          <li class="step">
+            <span class="step-num">2</span>
+            <div>
+              <h3>授权访达控制</h3>
+              <p>首次打开 App 时，若系统提示，请允许控制「访达」。之后 App 会在后台保持运行，供服务菜单与快捷键调用。</p>
+            </div>
+          </li>
+          <li class="step">
+            <span class="step-num">3</span>
+            <div>
+              <h3>选择你喜欢的方式</h3>
+              <p>打开 App、按 <kbd>⌃⌘↑</kbd>，或使用右键服务菜单——三种方式任选其一，效果相同。</p>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section id="integrate" class="section">
+      <div class="container">
+        <header class="section-header">
+          <h2>开发者与第三方集成</h2>
+          <p>脚本、自动化工具、右键增强软件均可调用。</p>
+        </header>
+        <div class="integrate-grid">
+          <div class="code-block">
+            <div class="code-header">命令行</div>
+            <pre><code>finder-go-up</code></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-header">URL Scheme</div>
+            <pre><code>open finder-go-up://go-up</code></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-header">直接打开 App</div>
+            <pre><code>open ~/Applications/Finder-go-up.app</code></pre>
+          </div>
+        </div>
+        <p class="integrate-note">源码安装后 CLI 位于 <code>~/.local/bin/finder-go-up</code>，也可手动链接到 <code>/usr/local/bin</code>。</p>
+        <details class="integrate-details">
+          <summary>超级右键（iRightMouse Pro）配置</summary>
+          <ol>
+            <li>打开 <strong>iRightMouse Pro → 偏好设置 → 工具箱 → 打开 App</strong></li>
+            <li>选择 <code>~/Applications/Finder-go-up.app</code></li>
+            <li>名称设为 <strong>返回上一级</strong>，保存后重启 iRightMouse Pro</li>
+          </ol>
+        </details>
+      </div>
+    </section>
+
+    <section id="download" class="section section-download">
+      <div class="container download-inner">
+        <img src="assets/logo.png" alt="" width="72" height="72" class="download-logo">
+        <h2>准备好升级访达导航了吗？</h2>
+        <p>适用于 macOS 13 及以上。安装包约 1 MB，卸载只需一条命令。</p>
+        <a class="btn btn-primary btn-lg" href="https://github.com/imboni/finder-go-up/releases/latest" target="_blank" rel="noopener">
+          前往 GitHub Releases 下载
+        </a>
+        <p class="download-meta">
+          卸载：<code>bash scripts/uninstall.sh</code> ·
+          <a href="https://github.com/imboni/finder-go-up/blob/main/docs/CHANGELOG.md" target="_blank" rel="noopener">更新日志</a>
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div class="footer-brand">
+        <img src="assets/logo.png" alt="" width="24" height="24">
+        <span>Finder-go-up</span>
+      </div>
+      <p class="footer-copy">© 2026 SeeData / acode · MIT License</p>
+      <div class="footer-links">
+        <a href="https://github.com/imboni/finder-go-up" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/imboni/finder-go-up/issues" target="_blank" rel="noopener">反馈问题</a>
+        <a href="https://github.com/imboni/finder-go-up/blob/main/README.md" target="_blank" rel="noopener">文档</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

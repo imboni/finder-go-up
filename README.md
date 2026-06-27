@@ -2,6 +2,8 @@
 
 在访达当前窗口返回上一级目录。
 
+**官网**：[imboni.github.io/finder-go-up](https://imboni.github.io/finder-go-up/) · [English](https://imboni.github.io/finder-go-up/en/)
+
 ## 安装
 
 1. 从 [Releases](https://github.com/imboni/finder-go-up/releases) 下载 `finder-go-up-0.0.3.dmg`
